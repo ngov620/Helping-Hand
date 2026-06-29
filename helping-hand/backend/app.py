@@ -16,13 +16,13 @@ def normalize(value, min_val, max_val):
         return 0.0
     return max(0.0, min(1.0, (value - min_val) / (max_val - min_val)))
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="frontend/templates")
 
 # -----------------------------
 # CONFIG
 # -----------------------------
 
-USER_AGENT = "helping-hand/1.0 (contact: youremail@example.com)"
+USER_AGENT = "helping-hand/1.0 (contact: ngovind@unc.edu)"
 
 WHO_RSS_URL = "https://www.who.int/feeds/entity/csr/don/en/rss.xml"
 CDC_RSS_URL = "https://tools.cdc.gov/api/v2/resources/media/403372.rss"
@@ -1186,11 +1186,19 @@ def extract_diseases_from_text(item):
 # -----------------------------
 
 def alert_matches_user_location(item, loc):
-    """Check whether the alert mentions the user's country, state, county, or city."""
+    """
+    Check whether a WHO/CDC alert is relevant to the user's location.
+    Uses both text matching AND a country-code → alias map so that
+    'Democratic Republic of the Congo', 'DRC', 'Congo', and 'Kinshasa'
+    all correctly match when the user searches Kinshasa, DRC.
+    """
     if not loc:
         return True
 
     text = f"{item.get('title','')} {item.get('summary','')}".lower()
+
+    # Build the set of terms to search for from the location object
+    cc = (loc.get("country_code") or "").lower()
 
     location_terms = [
         loc.get("country"),
@@ -1198,6 +1206,63 @@ def alert_matches_user_location(item, loc):
         loc.get("county"),
         loc.get("city"),
     ]
+
+    # Country code → list of text aliases that WHO/CDC use in alerts
+    COUNTRY_ALIASES = {
+        "cd": ["democratic republic of the congo", "drc", "dr congo", "congo-kinshasa",
+               "kinshasa", "ituri", "north kivu", "south kivu", "katanga", "kasai"],
+        "ug": ["uganda", "kampala", "bundibugyo"],
+        "ng": ["nigeria", "lagos", "abuja", "kano"],
+        "et": ["ethiopia", "addis ababa"],
+        "so": ["somalia", "mogadishu"],
+        "ss": ["south sudan", "juba"],
+        "ye": ["yemen", "sanaa", "aden"],
+        "pk": ["pakistan", "islamabad", "karachi", "lahore"],
+        "in": ["india", "new delhi", "mumbai", "delhi"],
+        "bd": ["bangladesh", "dhaka"],
+        "br": ["brazil", "sao paulo", "rio de janeiro", "brasilia"],
+        "cn": ["china", "beijing", "shanghai", "wuhan"],
+        "ke": ["kenya", "nairobi", "mombasa"],
+        "gh": ["ghana", "accra"],
+        "cm": ["cameroon", "yaounde", "douala"],
+        "za": ["south africa", "johannesburg", "cape town", "pretoria"],
+        "mx": ["mexico", "mexico city"],
+        "co": ["colombia", "bogota"],
+        "pe": ["peru", "lima"],
+        "ph": ["philippines", "manila"],
+        "id": ["indonesia", "jakarta"],
+        "th": ["thailand", "bangkok"],
+        "vn": ["vietnam", "hanoi", "ho chi minh"],
+        "mm": ["myanmar", "burma", "yangon"],
+        "af": ["afghanistan", "kabul"],
+        "ht": ["haiti", "port-au-prince"],
+        "sd": ["sudan", "khartoum"],
+        "sn": ["senegal", "dakar"],
+        "ml": ["mali", "bamako"],
+        "bf": ["burkina faso", "ouagadougou"],
+        "gn": ["guinea", "conakry"],
+        "lr": ["liberia", "monrovia"],
+        "sl": ["sierra leone", "freetown"],
+        "cg": ["republic of congo", "brazzaville"],
+        "ao": ["angola", "luanda"],
+        "mz": ["mozambique", "maputo"],
+        "mw": ["malawi", "lilongwe"],
+        "zm": ["zambia", "lusaka"],
+        "zw": ["zimbabwe", "harare"],
+        "tz": ["tanzania", "dar es salaam", "dodoma"],
+        "rw": ["rwanda", "kigali"],
+        "bi": ["burundi", "bujumbura"],
+        "us": ["united states", "usa", "u.s.", "america"],
+        "gb": ["united kingdom", "uk", "england", "britain", "london"],
+        "fr": ["france", "paris"],
+        "de": ["germany", "berlin"],
+        "it": ["italy", "rome"],
+        "es": ["spain", "madrid"],
+    }
+
+    # Add country-code aliases to search terms
+    if cc in COUNTRY_ALIASES:
+        location_terms.extend(COUNTRY_ALIASES[cc])
 
     for term in location_terms:
         if term and term.lower() in text:
@@ -1421,35 +1486,272 @@ def api_news():
 @app.route("/api/threats", methods=["POST"])
 def api_threats():
     payload = request.get_json(force=True)
-    loc = payload.get("location")
+    loc  = payload.get("location")
+    dest = payload.get("destination")
     lang = payload.get("lang", "en")
+
+    # Use destination for scoring if in travel mode, else use physical location
+    scoring_loc = dest if dest else loc
 
     who_items = get_cached_rss("who", WHO_RSS_URL)
     cdc_items = get_cached_rss("cdc", CDC_RSS_URL)
     all_items = who_items + cdc_items
 
-    relevant = [it for it in all_items if alert_matches_user_location(it, loc)]
-    if len(relevant) < 3:
-        relevant = all_items
+    # ── Hardcoded current outbreak alerts ──
+    # These supplement RSS when feeds are unavailable or slow.
+    # Updated to reflect confirmed active outbreaks as of June 2026.
+    # Sources: WHO DON, CDC HAN, ECDC Threat Assessment
+    HARDCODED_ALERTS = [
+        {
+            "title": "Ebola disease (Bundibugyo virus) outbreak — Democratic Republic of the Congo and Uganda",
+            "summary": (
+                "A major Ebola outbreak caused by Bundibugyo virus is ongoing in the Democratic Republic "
+                "of the Congo (DRC) and Uganda. As of June 26 2026, over 1,155 confirmed cases and 304 "
+                "deaths have been reported. The outbreak is centred in Ituri Province (DRC) with spread "
+                "to North Kivu, South Kivu, Kinshasa, and Kampala (Uganda). WHO declared a Public Health "
+                "Emergency of International Concern (PHEIC) on 17 May 2026. There is no approved vaccine "
+                "or specific treatment for Bundibugyo virus. Travel to DRC and Uganda is at Level 3 risk "
+                "(CDC). Avoid contact with sick individuals, healthcare facilities in outbreak zones, and "
+                "funeral practices involving the deceased."
+            ),
+            "link": "https://www.who.int/emergencies/situations/ebola-outbreak---drc-2026",
+            "published": "2026-06-26T00:00:00",
+            "source": "who",
+            "diseases": ["ebola"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "Dengue fever — global record surge 2024–2026, Americas and Southeast Asia",
+            "summary": (
+                "Dengue cases reached record levels globally in 2024–2025. Brazil reported over 3.6 million "
+                "cases in 2024. Indonesia, India, Philippines, Bangladesh, Colombia, Mexico, and Argentina "
+                "are also severely affected. WHO declared a Grade 3 emergency. The Qdenga vaccine is being "
+                "rolled out in select countries. Aedes aegypti mosquito control remains the primary prevention "
+                "measure. Travelers to tropical regions should use DEET repellent and protective clothing."
+            ),
+            "link": "https://www.who.int/news-room/fact-sheets/detail/dengue-and-severe-dengue",
+            "published": "2026-06-01T00:00:00",
+            "source": "who",
+            "diseases": ["dengue"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "Mpox (Clade I) outbreak — Democratic Republic of the Congo and neighbouring countries",
+            "summary": (
+                "Mpox Clade I outbreak continues in the Democratic Republic of the Congo with cases reported "
+                "in neighbouring countries including Uganda, Rwanda, Burundi, and Kenya. WHO declared a PHEIC "
+                "in August 2024. The JYNNEOS vaccine is available for high-risk individuals. Avoid close "
+                "physical contact with individuals with skin lesions or rash. DRC, Uganda, Rwanda, Burundi, "
+                "Kenya travelers should take precautions."
+            ),
+            "link": "https://www.who.int/news-room/fact-sheets/detail/mpox",
+            "published": "2026-05-01T00:00:00",
+            "source": "who",
+            "diseases": ["mpox"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "Cholera — ongoing global alert, Yemen, Nigeria, DRC, Sudan, Haiti",
+            "summary": (
+                "Cholera outbreaks are ongoing in multiple countries including Yemen, Nigeria, Democratic "
+                "Republic of the Congo, Sudan, Somalia, Haiti, and Ethiopia. WHO reports tens of thousands "
+                "of cases annually in these regions. Waterborne transmission through contaminated water and "
+                "food. Oral cholera vaccine is recommended for travel to endemic areas. Drink only bottled "
+                "or boiled water."
+            ),
+            "link": "https://www.who.int/news-room/fact-sheets/detail/cholera",
+            "published": "2026-06-01T00:00:00",
+            "source": "who",
+            "diseases": ["cholera"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "Malaria — high endemic transmission, sub-Saharan Africa",
+            "summary": (
+                "Malaria transmission is ongoing throughout sub-Saharan Africa including Nigeria, DRC, "
+                "Uganda, Tanzania, Kenya, Mozambique, Ghana, Cameroon, Mali, Burkina Faso, and Niger. "
+                "WHO World Malaria Report 2025 estimates 263 million cases and 597,000 deaths annually. "
+                "Antimalarial prophylaxis (Malarone, doxycycline) is strongly recommended for travelers. "
+                "Use DEET repellent and insecticide-treated bed nets. The RTS,S vaccine is available in "
+                "select African countries."
+            ),
+            "link": "https://www.who.int/news-room/fact-sheets/detail/malaria",
+            "published": "2026-06-01T00:00:00",
+            "source": "who",
+            "diseases": ["malaria"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "Yellow fever — endemic risk, sub-Saharan Africa and tropical South America",
+            "summary": (
+                "Yellow fever is endemic in sub-Saharan Africa and tropical South America including Brazil, "
+                "Nigeria, DRC, Uganda, Cameroon, Ghana, Senegal, Burkina Faso, Mali, and Peru. WHO confirmed "
+                "cases in 13 African countries in 2023. Vaccination is required for entry to many endemic "
+                "countries and must be given at least 10 days before travel. The Carte Jaune (yellow card) "
+                "serves as proof of vaccination at border crossings."
+            ),
+            "link": "https://www.who.int/news-room/fact-sheets/detail/yellow-fever",
+            "published": "2026-06-01T00:00:00",
+            "source": "who",
+            "diseases": ["yellow fever"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "Typhoid fever — high incidence, South Asia and sub-Saharan Africa",
+            "summary": (
+                "Typhoid fever remains highly endemic in Pakistan, India, Nepal, Bangladesh, Nigeria, DRC, "
+                "Ethiopia, Ghana, and Cameroon. The Lancet SETA study (2024) confirmed burden exceeds 100 "
+                "cases per 100,000 in these countries. Drug-resistant typhoid (XDR) is a growing concern "
+                "in Pakistan. Typhoid conjugate vaccine (TCV) is recommended for travel to endemic regions. "
+                "Consume only safe water and avoid raw foods."
+            ),
+            "link": "https://www.who.int/news-room/fact-sheets/detail/typhoid",
+            "published": "2026-06-01T00:00:00",
+            "source": "who",
+            "diseases": ["typhoid"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "West Nile virus — seasonal transmission, United States and Mediterranean",
+            "summary": (
+                "West Nile virus is endemic in the United States and Canada, with 2,000–5,000 human cases "
+                "reported annually. Summer and early fall are peak transmission seasons. Italy, Greece, "
+                "Romania, France, Hungary, and Spain report seasonal outbreaks annually. No approved human "
+                "vaccine exists. Use insect repellent, wear long sleeves, and avoid outdoor activities at "
+                "dawn and dusk in affected areas."
+            ),
+            "link": "https://www.who.int/news-room/fact-sheets/detail/west-nile-virus",
+            "published": "2026-06-01T00:00:00",
+            "source": "who",
+            "diseases": ["west nile"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "Chikungunya — Americas surge 2024–2026, South-East Asia endemic",
+            "summary": (
+                "Chikungunya incidence reached 43.9 per 100,000 in the Americas in 2024 (JOGH 2026). "
+                "Brazil, Paraguay, Colombia, Bolivia, Mexico, and Central American countries are most "
+                "affected. India reported 192,343 cases in 2024. Pakistan is the only country reporting "
+                "active chikungunya in 2026 per ECDC. No widely deployed vaccine exists. Prevention "
+                "relies on mosquito avoidance using DEET repellent and protective clothing."
+            ),
+            "link": "https://www.who.int/news-room/fact-sheets/detail/chikungunya",
+            "published": "2026-06-01T00:00:00",
+            "source": "who",
+            "diseases": ["chikungunya"],
+            "_hardcoded": True,
+        },
+        {
+            "title": "Influenza H3N2 — severe 2025–2026 season, Northern Hemisphere",
+            "summary": (
+                "The 2025–2026 influenza season in the Northern Hemisphere was dominated by H3N2, which "
+                "accounted for 91.2% of subtyped specimens at its peak (CDC FluView, January 2026). "
+                "H3N2-dominant seasons trend more severe in elderly and immunocompromised populations. "
+                "Annual influenza vaccination is strongly recommended before travel. Antiviral treatment "
+                "with oseltamivir (Tamiflu) is most effective within 48 hours of symptom onset."
+            ),
+            "link": "https://www.cdc.gov/flu/weekly/index.htm",
+            "published": "2026-01-15T00:00:00",
+            "source": "cdc",
+            "diseases": ["influenza"],
+            "_hardcoded": True,
+        },
+    ]
 
-    country_code = (loc or {}).get("country_code", "")
+    # Merge RSS items with hardcoded alerts — RSS first, hardcoded fill gaps
+    rss_diseases = set()
+    for item in all_items:
+        diseases = extract_diseases_from_text(item)
+        rss_diseases.update(diseases)
+
+    # Only add hardcoded alert if RSS didn't already return something for that disease
+    for alert in HARDCODED_ALERTS:
+        if not any(d in rss_diseases for d in alert["diseases"]):
+            all_items.append(alert)
+
+    # ── Countries where disease burden is genuinely low ──
+    LOW_RISK_COUNTRY_CODES = {
+        "us", "ca", "gb", "fr", "de", "it", "es", "nl", "be", "se", "no", "dk",
+        "fi", "ch", "at", "au", "nz", "jp", "kr", "sg", "il", "ie", "pt", "gr",
+        "hu", "pl", "cz", "ro", "hr", "cy", "mt", "lu", "sk", "si", "ee", "lv", "lt",
+    }
+
+    # Diseases that have meaningful endemic presence in low-risk countries
+    # Key: country_code → list of disease keys that are locally relevant
+    LOW_RISK_RELEVANT_DISEASES = {
+        "us": ["influenza", "rsv", "covid", "west nile"],
+        "ca": ["influenza", "rsv", "covid", "west nile"],
+        "gb": ["influenza", "rsv", "covid"],
+        "fr": ["influenza", "rsv", "covid", "west nile"],
+        "de": ["influenza", "rsv", "covid", "west nile"],
+        "it": ["influenza", "rsv", "covid", "west nile"],
+        "es": ["influenza", "rsv", "covid", "west nile"],
+        "gr": ["influenza", "rsv", "covid", "west nile"],
+        "au": ["influenza", "rsv", "covid", "dengue"],
+        "jp": ["influenza", "rsv", "covid"],
+        "kr": ["influenza", "rsv", "covid"],
+        "sg": ["influenza", "covid", "dengue"],
+    }
+    DEFAULT_LOW_RISK_DISEASES = ["influenza", "rsv", "covid"]
+
+    cc = (scoring_loc or loc or {}).get("country_code", "")
+    is_low_risk = cc in LOW_RISK_COUNTRY_CODES
+    country_code = cc
 
     enriched = []
-    for it in relevant:
-        diseases = extract_diseases_from_text(it)
+    seen_diseases = set()
 
-        # Pass country_code so malaria R0 is region-adjusted
-        score = max((composite_score(d, country_code) for d in diseases), default=10)
-        tier  = score_to_tier(score)
-        rec   = tier_recommendation(tier, diseases)
+    if is_low_risk:
+        # For low-risk countries: bypass alert text matching entirely.
+        # Only score diseases that are genuinely endemic/seasonal there.
+        # Never show tropical diseases (cholera, yellow fever, malaria, ebola etc.)
+        relevant_diseases = LOW_RISK_RELEVANT_DISEASES.get(cc, DEFAULT_LOW_RISK_DISEASES)
 
-        enriched.append({
-            **it,
-            "diseases":       diseases,
-            "risk_index":     score,
-            "tier":           tier,
-            "recommendation": rec,
-        })
+        # Find the hardcoded alerts for these specific diseases only
+        for alert in HARDCODED_ALERTS:
+            disease_list = alert.get("diseases", [])
+            matching = [d for d in disease_list if d in relevant_diseases]
+            if not matching:
+                continue
+            for d in matching:
+                if d in seen_diseases:
+                    continue
+                seen_diseases.add(d)
+                score = composite_score(d, cc)
+                tier  = score_to_tier(score)
+                enriched.append({
+                    **alert,
+                    "diseases":       [d],
+                    "risk_index":     score,
+                    "tier":           tier,
+                    "recommendation": tier_recommendation(tier, [d]),
+                })
+
+    else:
+        # High-risk region: match alerts to location, fall back to all global alerts
+        match_loc = scoring_loc or loc
+        relevant = [it for it in all_items if alert_matches_user_location(it, match_loc)]
+        if len(relevant) < 2:
+            relevant = all_items
+
+        for it in relevant:
+            diseases = extract_diseases_from_text(it) or it.get("diseases", [])
+            if not diseases:
+                continue
+            new_diseases = [d for d in diseases if d not in seen_diseases]
+            if not new_diseases and not it.get("_hardcoded"):
+                continue
+            seen_diseases.update(new_diseases)
+            primary_diseases = new_diseases if new_diseases else diseases
+            score = max((composite_score(d, cc) for d in primary_diseases), default=10)
+            tier  = score_to_tier(score)
+            enriched.append({
+                **it,
+                "diseases":       primary_diseases,
+                "risk_index":     score,
+                "tier":           tier,
+                "recommendation": tier_recommendation(tier, primary_diseases),
+            })
 
     enriched.sort(key=lambda x: x["risk_index"], reverse=True)
 
@@ -1468,7 +1770,6 @@ def api_threats():
     tips_translated = [translate_text(t, lang) for t in tips]
     top3_translated = [translate_text(t, lang) for t in top3]
 
-    # Include current influenza strain info in response
     flu_strain_key  = get_fluview_strain()
     flu_strain_info = FLUVIEW_STRAIN_PROFILES.get(flu_strain_key, FLUVIEW_STRAIN_PROFILES["fallback"])
 
@@ -1488,8 +1789,7 @@ def api_threats():
         "note": (
             "Risk scores are derived from WHO/CDC epidemiological data "
             "(CFR, R0, transmission route, vaccine availability). "
-            "Malaria scores are adjusted by regional incidence "
-            "(WHO/World Bank 2024). Influenza scores reflect current "
+            "Regional R0 adjusted per country. Influenza reflects current "
             "dominant strain per CDC FluView. Not a substitute for medical advice."
         ),
     })

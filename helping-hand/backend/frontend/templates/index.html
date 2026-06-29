@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -26,6 +28,26 @@
       --travel-border:rgba(255,209,102,0.35);
       --radius-md:    16px;
       --radius-lg:    22px;
+    }
+
+    /* ── Disease color palette (consistent throughout app) ── */
+    :root {
+      --d-malaria:        #9B59B6;  /* purple */
+      --d-dengue:         #E67E22;  /* orange */
+      --d-cholera:        #3498DB;  /* blue */
+      --d-yellow-fever:   #F1C40F;  /* yellow */
+      --d-typhoid:        #1ABC9C;  /* teal */
+      --d-hepatitis-a:    #E74C3C;  /* red */
+      --d-rabies:         #8B4513;  /* brown */
+      --d-zika:           #FF69B4;  /* pink */
+      --d-chikungunya:    #FF8C00;  /* dark orange */
+      --d-west-nile:      #2ECC71;  /* green */
+      --d-ebola:          #8B0000;  /* dark red */
+      --d-mpox:           #D35400;  /* burnt orange */
+      --d-covid:          #5DADE2;  /* light blue */
+      --d-influenza:      #85C1E9;  /* sky blue */
+      --d-measles:        #F39C12;  /* gold */
+      --d-default:        #95A5A6;  /* grey */
     }
 
     body {
@@ -48,7 +70,6 @@
     }
     .nav-title { font-size: 16px; font-weight: 500; color: var(--white); }
 
-    /* ── Search area ── */
     .search-area { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 8px; }
 
     .search-pill {
@@ -58,15 +79,14 @@
       backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     }
     .search-pill svg { width: 15px; height: 15px; stroke: var(--white-70); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
-    .search-pill input { border: none; background: transparent; outline: none; font-size: 15px; font-family: inherit; color: var(--white); flex: 1; min-width: 0; }
-    .search-pill input::placeholder { color: var(--white-50); }
+    .search-pill input { border: none; background: transparent; outline: none; font-size: 14px; font-family: inherit; color: var(--white); flex: 1; min-width: 0; }
+    .search-pill input::placeholder { color: var(--white-50); font-size: 13px; }
     .loc-btn {
       background: rgba(255,255,255,0.18); border: none; cursor: pointer;
       color: var(--white); font-size: 12px; font-family: inherit;
       padding: 5px 10px; border-radius: 999px; white-space: nowrap; font-weight: 500; flex-shrink: 0;
     }
 
-    /* Travel destination pill */
     .travel-pill {
       display: none; align-items: center; gap: 10px;
       background: var(--travel-bg); border: 1px solid var(--travel-border);
@@ -84,7 +104,6 @@
       padding: 4px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
     }
 
-    /* Travel mode banner in content */
     .travel-banner {
       background: var(--travel-bg); border: 1px solid var(--travel-border);
       border-radius: var(--radius-md); padding: 11px 14px; margin-bottom: 12px;
@@ -108,6 +127,7 @@
 
     .content { flex: 1; overflow-y: auto; padding: 0 16px 3rem; }
 
+    /* ── Landing ── */
     #screen-landing { align-items: center; justify-content: center; padding: 2rem 1.5rem; }
     .landing-inner { width: 100%; max-width: 380px; }
     .brand-hero { text-align: center; margin-bottom: 2.5rem; }
@@ -135,6 +155,7 @@
     .role-arrow { margin-left: auto; color: var(--white-50); font-size: 20px; }
     .landing-foot { text-align: center; margin-top: 1.5rem; font-size: 12px; color: var(--white-50); line-height: 1.6; }
 
+    /* ── User screen ── */
     #screen-user { max-width: 480px; margin: 0 auto; width: 100%; }
     .risk-hero { text-align: center; padding: 8px 0 24px; }
     .risk-loc-name { font-size: 32px; font-weight: 300; letter-spacing: -0.5px; }
@@ -162,6 +183,7 @@
     }
     .disease-row:last-child { border-bottom: none; }
     .disease-row:hover { background: rgba(255,255,255,0.06); }
+    .d-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .d-rank { font-size: 13px; color: var(--white-50); width: 16px; text-align: center; flex-shrink: 0; }
     .d-info { flex: 1; }
     .d-name { font-size: 15px; font-weight: 500; }
@@ -195,17 +217,65 @@
     .dot-low    { background: rgba(168,255,120,0.3); color: var(--mint); }
     .hourly-score { font-size: 15px; font-weight: 300; }
 
+    /* ── Vaccination chips ── */
     .vax-body { padding: 12px 16px; }
     .vax-subtitle { font-size: 12px; color: var(--white-50); margin-bottom: 10px; }
     .chip-wrap { display: flex; flex-wrap: wrap; gap: 7px; }
     .chip {
       font-size: 12px; padding: 5px 13px; border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.25); color: var(--white-70);
-      cursor: pointer; background: rgba(255,255,255,0.08); transition: all .15s;
+      border: 1px solid rgba(255,255,255,0.25); color: var(--white);
+      cursor: pointer; transition: all .2s; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 5px;
     }
-    .chip.on { background: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.6); color: var(--white); }
-    .chip-add { border-style: dashed; color: var(--white-50); }
+    .chip-vax { background: rgba(46,204,113,0.25); border-color: rgba(46,204,113,0.5); }
+    .chip-novax { background: rgba(255,107,71,0.20); border-color: rgba(255,107,71,0.4); }
+    .chip-risk-high { box-shadow: 0 0 0 2px var(--coral); }
+    .chip-risk-medium { box-shadow: 0 0 0 2px var(--amber); }
+    .chip-risk-low { box-shadow: 0 0 0 2px rgba(168,255,120,0.5); }
+    .chip-add { border-style: dashed; color: var(--white-50); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
 
+    /* ── Symptom popup ── */
+    .popup-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 1000; padding: 0 8px 8px;
+      animation: fadeIn .15s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .popup-sheet {
+      background: #1a3a52; border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px; width: 100%; max-width: 480px;
+      padding: 20px; max-height: 75vh; overflow-y: auto;
+      animation: slideUp .2s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .popup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .popup-title { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .popup-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .popup-close { background: rgba(255,255,255,0.15); border: none; color: var(--white); cursor: pointer; width: 28px; height: 28px; border-radius: 50%; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+    .popup-score-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 12px; background: rgba(255,255,255,0.08); border-radius: 10px; }
+    .popup-score-num { font-size: 28px; font-weight: 200; }
+    .popup-score-lbl { font-size: 12px; color: var(--white-70); }
+    .popup-score-lbl strong { display: block; font-size: 13px; color: var(--white); font-weight: 500; }
+    .popup-section-lbl { font-size: 10px; font-weight: 600; color: var(--white-50); letter-spacing: .07em; text-transform: uppercase; margin-bottom: 8px; }
+    .symptom-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .symptom-tag { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); }
+    .popup-tip { font-size: 12px; color: var(--white-70); line-height: 1.6; margin-bottom: 6px; padding-left: 12px; border-left: 2px solid rgba(255,255,255,0.2); }
+    .popup-vax-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 5px 12px; border-radius: 999px; margin-bottom: 14px; }
+    .badge-vaxxed { background: rgba(46,204,113,0.2); border: 1px solid rgba(46,204,113,0.4); color: #A8FFB8; }
+    .badge-notvaxxed { background: rgba(255,107,71,0.2); border: 1px solid rgba(255,107,71,0.4); color: #FFB39A; }
+
+    /* ── Disease map ── */
+    .map-container { padding: 12px 14px 8px; }
+    #disease-map { width: 100%; height: 320px; border-radius: 10px; overflow: hidden; z-index: 1; }
+    .map-legend { padding: 8px 14px 10px; }
+    .map-legend-title { font-size: 10px; color: var(--white-50); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+    .map-legend-items { display: flex; flex-wrap: wrap; gap: 8px; }
+    .map-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--white-70); }
+    .map-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .map-note { padding: 0 14px 10px; font-size: 10px; color: var(--white-50); line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px; }
+
+    /* ── News / tips ── */
     .news-row { padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
     .news-row:last-child { border-bottom: none; }
     .news-src { font-size: 11px; color: var(--white-50); margin-bottom: 3px; font-weight: 500; letter-spacing: .04em; }
@@ -223,9 +293,11 @@
     .loading::before { content: ''; display: block; width: 28px; height: 28px; border: 2px solid rgba(255,255,255,0.15); border-top-color: rgba(255,255,255,0.6); border-radius: 50%; margin: 0 auto 1rem; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Detail screen ── */
     #screen-detail { max-width: 480px; margin: 0 auto; width: 100%; }
     .detail-hero { text-align: center; padding: 8px 0 20px; }
-    .detail-disease-name { font-size: 30px; font-weight: 300; letter-spacing: -0.5px; }
+    .detail-disease-name { font-size: 30px; font-weight: 300; letter-spacing: -0.5px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .detail-d-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
     .detail-location { font-size: 13px; color: var(--white-70); margin-top: 2px; margin-bottom: 6px; }
     .detail-score-big { font-size: 80px; font-weight: 200; line-height: 1; letter-spacing: -3px; }
     .detail-score-big.high { color: var(--coral); }
@@ -274,6 +346,7 @@
     .detail-tip-txt { font-size: 12px; color: var(--white-70); line-height: 1.5; padding-top: 5px; }
     .detail-source { padding: 10px 14px; font-size: 11px; color: var(--white-50); line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.08); }
 
+    /* ── Nonprofit screen ── */
     #screen-nonprofit { max-width: 480px; margin: 0 auto; width: 100%; }
     .np-tabs { display: flex; padding: 0 16px; gap: 8px; margin-bottom: 12px; }
     .np-tab { flex: 1; text-align: center; padding: 9px 8px; font-size: 13px; color: var(--white-70); cursor: pointer; border-radius: 999px; font-weight: 500; background: rgba(255,255,255,0.08); border: 1px solid transparent; transition: all .15s; }
@@ -299,9 +372,93 @@
     .badge-erad    { background: rgba(48,209,88,0.2);  color: #A8FFB8; border: 1px solid rgba(48,209,88,0.3); }
     .badge-cont    { background: rgba(255,179,64,0.2); color: #FFD990; border: 1px solid rgba(255,179,64,0.3); }
     .badge-ongoing { background: rgba(100,180,255,0.2);color: #A8D8FF; border: 1px solid rgba(100,180,255,0.3); }
+
+    /* Leaflet overrides */
+    .leaflet-container { background: #e8e8e8 !important; }
+    .leaflet-popup-content { font-family: Inter, sans-serif; }
+
+    /* ── Vaccination modal ── */
+    .vax-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 2000; padding: 0 8px 8px;
+      animation: fadeIn .15s ease;
+    }
+    .vax-modal-sheet {
+      background: linear-gradient(180deg, #1e4d6b 0%, #152f42 100%);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px; width: 100%; max-width: 480px;
+      padding: 24px 20px; max-height: 85vh; overflow-y: auto;
+      animation: slideUp .2s ease;
+    }
+    .vax-modal-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 6px; }
+    .vax-modal-title { font-size: 19px; font-weight: 600; }
+    .vax-modal-sub { font-size: 13px; color: var(--white-70); line-height: 1.5; margin-bottom: 20px; }
+    .vax-modal-close { background: rgba(255,255,255,0.12); border: none; color: var(--white); cursor: pointer; width: 30px; height: 30px; border-radius: 50%; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 10px; }
+    .vax-modal-section { font-size: 10px; font-weight: 600; color: var(--white-50); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+    .vax-check-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    .vax-check-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px; cursor: pointer; transition: all .15s;
+    }
+    .vax-check-item:hover { background: rgba(255,255,255,0.12); }
+    .vax-check-item.checked { background: rgba(46,204,113,0.15); border-color: rgba(46,204,113,0.4); }
+    .vax-check-box {
+      width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center;
+      transition: all .15s; font-size: 13px;
+    }
+    .vax-check-item.checked .vax-check-box { background: rgba(46,204,113,0.8); border-color: rgba(46,204,113,0.9); }
+    .vax-check-info { flex: 1; }
+    .vax-check-name { font-size: 14px; font-weight: 500; }
+    .vax-check-desc { font-size: 11px; color: var(--white-50); margin-top: 2px; }
+    .vax-check-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .vax-modal-note { font-size: 11px; color: var(--white-50); line-height: 1.6; text-align: center; margin-bottom: 16px; }
+    .vax-modal-done {
+      width: 100%; padding: 14px; border-radius: 12px; border: none; cursor: pointer;
+      background: rgba(255,255,255,0.9); color: #1a3a52; font-size: 15px; font-weight: 600;
+      font-family: inherit; transition: background .15s;
+    }
+    .vax-modal-done:hover { background: #ffffff; }
+    .vax-count-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: rgba(46,204,113,0.3); border: 1px solid rgba(46,204,113,0.5);
+      color: #A8FFB8; font-size: 11px; font-weight: 600;
+      width: 20px; height: 20px; border-radius: 50%; margin-left: 6px;
+    }
   </style>
 </head>
 <body>
+
+<!-- VACCINATION MODAL -->
+<div id="vax-modal" class="vax-modal-overlay" style="display:none" onclick="closeVaxModal(event)">
+  <div class="vax-modal-sheet" id="vax-modal-sheet">
+    <div class="vax-modal-header">
+      <div class="vax-modal-title">My Vaccination Record</div>
+      <button class="vax-modal-close" onclick="closeVaxModalDirect()">✕</button>
+    </div>
+    <div class="vax-modal-sub">Select every vaccine you have received. This is stored only in your current session — nothing is saved or sent anywhere.</div>
+    <div class="vax-modal-section">Travel vaccines</div>
+    <div class="vax-check-list" id="vax-check-list"></div>
+    <div class="vax-modal-note">🔒 Session only · No account required · Nothing stored on any server · Closes when you leave the page</div>
+    <button class="vax-modal-done" onclick="saveVaxAndClose()">Save &amp; continue</button>
+  </div>
+</div>
+
+<!-- SYMPTOM POPUP (global overlay) -->
+<div id="symptom-popup" class="popup-overlay" style="display:none" onclick="closePopup(event)">
+  <div class="popup-sheet" id="popup-sheet">
+    <div class="popup-header">
+      <div class="popup-title">
+        <div class="popup-dot" id="popup-dot"></div>
+        <span id="popup-title-text"></span>
+      </div>
+      <button class="popup-close" onclick="closePopupDirect()">✕</button>
+    </div>
+    <div id="popup-body"></div>
+  </div>
+</div>
 
 <!-- SCREEN 1 — Landing -->
 <div id="screen-landing" class="screen active">
@@ -324,6 +481,11 @@
       <div class="role-text"><div class="rt">Nonprofit resource finder</div><div class="rs">Find health organizations near you</div></div>
       <div class="role-arrow">›</div>
     </div>
+    <div class="role-btn" onclick="openVaxModal()" id="vax-landing-btn">
+      <div class="role-icon-w"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div>
+      <div class="role-text"><div class="rt">My vaccination record <span id="vax-landing-count" style="display:none" class="vax-count-badge">0</span></div><div class="rs" id="vax-landing-sub">Log vaccines to personalize your risk score</div></div>
+      <div class="role-arrow">›</div>
+    </div>
     <div class="landing-foot">Data sourced from WHO &amp; CDC · Not a substitute for medical advice</div>
   </div>
 </div>
@@ -334,24 +496,20 @@
     <button class="back-btn" onclick="showScreen('landing')" aria-label="Back">‹</button>
     <div class="nav-title">Helping Hand</div>
   </div>
-
   <div class="search-area">
-    <!-- Current location row -->
     <div class="search-pill">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="user-search" type="text" placeholder="Where are you traveling to?" />
+      <input id="user-search" type="text" placeholder="Enter city and country — e.g. Lagos, Nigeria" />
       <button class="loc-btn" onclick="useMyLocation()">My location</button>
     </div>
-    <!-- Travel destination pill — shown when destination is set -->
     <div class="travel-pill" id="travel-pill">
       <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
       <span class="travel-pill-label" id="travel-dest-label">Destination</span>
       <button class="travel-clear-btn" onclick="clearDestination()">✕ Clear</button>
     </div>
   </div>
-
   <div class="content" id="user-content">
-    <div class="empty">Search a destination or tap "My location" to see disease risk data.</div>
+    <div class="empty">Search a city and country, or tap "My location" to see disease risk data.</div>
   </div>
 </div>
 
@@ -373,7 +531,7 @@
   <div class="search-area">
     <div class="search-pill">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="np-search" type="text" placeholder="Filter by location…" />
+      <input id="np-search" type="text" placeholder="Enter city and country — e.g. Nairobi, Kenya" />
       <button class="loc-btn" onclick="useMyLocationNP()">My location</button>
     </div>
   </div>
@@ -388,511 +546,925 @@
       <div class="filter-chip" onclick="toggleFilter(this,'water')">Water &amp; sanitation</div>
       <div class="filter-chip" onclick="toggleFilter(this,'vaccination')">Vaccination</div>
     </div>
-    <div id="np-content"><div class="empty">Use your location or search a city to find nearby nonprofits.</div></div>
+    <div id="np-content"><div class="empty">Enter a city and country to find nearby health organizations.</div></div>
   </div>
 </div>
 
 <script>
-  const DISEASE_PROFILES = {
-    "ebola":           { cfr:0.90, r0:2.0,  transmission:"contact",   vaccine:false, season:"Year-round", regions:null },
-    "marburg":         { cfr:0.88, r0:2.0,  transmission:"contact",   vaccine:false, season:"Year-round", regions:null },
-    "cholera": { cfr:0.50, r0:3.0, transmission:"waterborne", vaccine:true, season:"Rainy season",
-      regions:[
-        { name:"Active endemic (e.g. Nigeria, Yemen, DRC)", score:39, cls:"rc-high",   label:"High" },
-        { name:"Recurrent outbreaks (e.g. Zambia, Uganda)", score:34, cls:"rc-medium", label:"Moderate" },
-        { name:"Sporadic (e.g. India, Philippines)",        score:31, cls:"rc-low",    label:"Low" },
-        { name:"Non-endemic (e.g. US, Europe)",             score:28, cls:"rc-low",    label:"Minimal" },
-      ]
-    },
-    "measles":         { cfr:0.15, r0:15.0, transmission:"airborne",  vaccine:true,  season:"Year-round", regions:null },
-    "polio":           { cfr:0.10, r0:6.0,  transmission:"fecal-oral",vaccine:true,  season:"Year-round", regions:null },
-    "dengue": { cfr:0.025, r0:3.0, transmission:"vector", vaccine:false, season:"Rainy season",
-      regions:[
-        { name:"Very high (e.g. Brazil, India, Indonesia)", score:21, cls:"rc-high",   label:"Very High" },
-        { name:"High (e.g. Bangladesh, Pakistan, Singapore)",score:17, cls:"rc-medium", label:"High" },
-        { name:"Moderate (e.g. Nigeria, Australia)",         score:14, cls:"rc-low",    label:"Moderate" },
-        { name:"Non-endemic (e.g. US, Europe)",              score:11, cls:"rc-low",    label:"Minimal" },
-      ]
-    },
-    "avian influenza": { cfr:0.60, r0:1.2,  transmission:"airborne",  vaccine:false, season:"Year-round", regions:null },
-    "lassa":           { cfr:0.30, r0:2.0,  transmission:"contact",   vaccine:false, season:"Dry season (W. Africa)", regions:null },
-    "yellow fever": { cfr:0.40, r0:2.5, transmission:"vector", vaccine:true, season:"Rainy season",
-      regions:[
-        { name:"Endemic Africa/Americas (vaccination required)", score:35, cls:"rc-high",   label:"High" },
-        { name:"Transitional (e.g. Peru, Kenya, Mali)",          score:30, cls:"rc-medium", label:"Moderate" },
-        { name:"Non-endemic (e.g. US, Europe, Asia)",            score:27, cls:"rc-low",    label:"Minimal" },
-      ]
-    },
-    "mpox":            { cfr:0.10, r0:2.5,  transmission:"contact",   vaccine:true,  season:"Year-round", regions:null },
-    "malaria": { cfr:0.20, r0:18.0, transmission:"vector", vaccine:true, season:"Rainy season",
-      regions:[
-        { name:"Sub-Saharan Africa (e.g. Nigeria, DRC)",    score:48, cls:"rc-high",   label:"High" },
-        { name:"High endemic (e.g. Kenya, Pakistan)",        score:35, cls:"rc-medium", label:"Moderate" },
-        { name:"Low endemic (e.g. India, Brazil)",           score:22, cls:"rc-low",    label:"Low" },
-        { name:"Non-endemic (e.g. US, Europe)",              score:12, cls:"rc-low",    label:"Minimal" },
-      ]
-    },
-    "typhoid": { cfr:0.15, r0:4.0, transmission:"fecal-oral", vaccine:true, season:"Year-round",
-      regions:[
-        { name:"Very high (e.g. Pakistan, India, Nepal, DRC)", score:24, cls:"rc-high",   label:"Very High" },
-        { name:"High (e.g. Philippines, Kenya, Zimbabwe)",      score:21, cls:"rc-medium", label:"High" },
-        { name:"Moderate (e.g. China, Thailand, Peru)",         score:18, cls:"rc-low",    label:"Moderate" },
-        { name:"Non-endemic (e.g. US, Europe)",                 score:15, cls:"rc-low",    label:"Minimal" },
-      ]
-    },
-    "zika": { cfr:0.01, r0:3.0, transmission:"vector", vaccine:false, season:"Rainy season",
-      regions:[
-        { name:"High — Americas (e.g. Brazil, Colombia, Mexico)", score:17, cls:"rc-high",   label:"High" },
-        { name:"Moderate — SEA/Pacific/Africa (e.g. Indonesia)",  score:13, cls:"rc-medium", label:"Moderate" },
-        { name:"Low — recently detected (e.g. Seychelles)",       score:11, cls:"rc-low",    label:"Low" },
-        { name:"Non-endemic (e.g. US, Europe)",                   score:10, cls:"rc-low",    label:"Minimal" },
-      ]
-    },
-    "chikungunya":     { cfr:0.01, r0:3.5,  transmission:"vector",    vaccine:false, season:"Rainy season", regions:null },
-    "covid":           { cfr:0.01, r0:3.5,  transmission:"airborne",  vaccine:true,  season:"Year-round", regions:null },
-    "influenza":       { cfr:0.001,r0:2.5,  transmission:"airborne",  vaccine:true,  season:"Winter months", regions:null },
-    "rsv":             { cfr:0.001,r0:3.0,  transmission:"airborne",  vaccine:true,  season:"Winter months", regions:null },
-    "west nile":       { cfr:0.09, r0:3.0,  transmission:"vector",    vaccine:false, season:"Summer/fall", regions:null },
-    "hepatitis a": { cfr:0.01, r0:5.0, transmission:"fecal-oral", vaccine:true, season:"Year-round",
-      regions:[
-        { name:"High endemicity (e.g. Nigeria, Pakistan, Afghanistan)", score:17, cls:"rc-high",   label:"High" },
-        { name:"Moderate (e.g. India, Indonesia, Egypt)",               score:13, cls:"rc-medium", label:"Moderate" },
-        { name:"Low (e.g. Brazil, China, South Africa)",                score:10, cls:"rc-low",    label:"Low" },
-        { name:"Very low (e.g. US, Europe)",                            score:8,  cls:"rc-low",    label:"Minimal" },
-      ]
-    },
-    "rabies": { cfr:1.00, r0:1.0, transmission:"contact", vaccine:true, season:"Year-round",
-      regions:[
-        { name:"Very high (e.g. India, Nepal, Ethiopia, Tanzania)", score:58, cls:"rc-high",   label:"Very High" },
-        { name:"High (e.g. Indonesia, Philippines, South Africa)",   score:56, cls:"rc-high",   label:"High" },
-        { name:"Moderate (e.g. Mexico, Brazil, Russia)",             score:54, cls:"rc-medium", label:"Moderate" },
-        { name:"Eliminated (e.g. US, Europe, Japan, Australia)",     score:53, cls:"rc-low",    label:"Minimal" },
-      ]
-    },
-  };
+// ── Disease color palette (consistent, never changes) ──
+const DISEASE_COLORS = {
+  "malaria":        "#9B59B6",
+  "dengue":         "#E67E22",
+  "cholera":        "#3498DB",
+  "yellow fever":   "#F1C40F",
+  "typhoid":        "#1ABC9C",
+  "hepatitis a":    "#E74C3C",
+  "rabies":         "#8B4513",
+  "zika":           "#FF69B4",
+  "chikungunya":    "#FF8C00",
+  "west nile":      "#2ECC71",
+  "ebola":          "#8B0000",
+  "marburg":        "#6C0000",
+  "mpox":           "#D35400",
+  "covid":          "#5DADE2",
+  "influenza":      "#85C1E9",
+  "measles":        "#F39C12",
+  "polio":          "#A569BD",
+  "lassa":          "#C0392B",
+  "avian influenza":"#16A085",
+  "rsv":            "#7F8C8D",
+  "default":        "#95A5A6",
+};
 
-  const DISEASE_TIPS = {
-    "malaria":      ["Take antimalarial prophylaxis (Malarone or doxycycline) 1–2 weeks before departure.", "Use DEET repellent (30%+) and sleep under insecticide-treated nets. Wear long sleeves at dusk and dawn.", "Seek care immediately if fever develops within 3 months of return — malaria is treatable when caught early."],
-    "yellow fever": ["Vaccinate at least 10 days before travel — required for entry in many endemic countries.", "Use insect repellent and wear long clothing to reduce mosquito exposure.", "Carry your yellow fever vaccination card (Carte Jaune) for border crossings."],
-    "cholera":      ["Drink only bottled or boiled water. Avoid ice, raw shellfish, and street food.", "Wash hands thoroughly with soap and water before eating.", "Oral cholera vaccine is available and recommended for high-risk areas."],
-    "dengue":       ["No vaccine widely available — prevention is key. Use DEET repellent during the day when Aedes mosquitoes are active.", "Wear long-sleeved clothing and use bed nets even during the day.", "Seek care if fever, severe headache, or rash develops within 2 weeks of travel."],
-    "typhoid":      ["Get the typhoid vaccine 2 weeks before travel to South Asia, Africa, or Southeast Asia.", "Drink only bottled or boiled water and avoid raw foods, especially shellfish and salads.", "Seek care promptly if sustained fever develops — typhoid is treatable with antibiotics when caught early."],
-    "hepatitis a":  ["Get vaccinated — the hepatitis A vaccine is highly effective and recommended for most international travel.", "Drink only bottled or boiled water. Avoid raw shellfish, salads, and unpeeled fruit in high-risk areas.", "Wash hands thoroughly before eating and after using the bathroom."],
-    "rabies":       ["Avoid contact with animals, especially dogs, bats, and monkeys in endemic areas.", "If bitten or scratched, wash the wound immediately with soap and water for 15 minutes — this significantly reduces risk.", "Seek post-exposure prophylaxis (PEP) immediately after any animal bite — do not wait for symptoms; rabies is nearly always fatal once they appear."],
-    "zika":         ["Pregnant women or those planning pregnancy should avoid travel to Zika-endemic areas if possible.", "Use DEET repellent, wear long sleeves, and sleep under bed nets to prevent Aedes mosquito bites.", "Use condoms during and for at least 3 months after travel — Zika can be sexually transmitted."],
-    "covid":        ["Stay up to date on booster doses before travel.", "Wear a mask in crowded indoor spaces, especially in areas with low vaccination rates.", "Have a plan for testing and isolation if you develop symptoms abroad."],
-    "default":      ["Consult a travel health clinic 4–6 weeks before departure for personalized advice.", "Wash hands frequently and avoid touching your face in public spaces.", "Carry a basic health kit including oral rehydration salts, antidiarrheal, and pain reliever."],
-  };
+function getDiseaseColor(name) {
+  return DISEASE_COLORS[name] || DISEASE_COLORS["default"];
+}
 
-  const userVax = new Set(['covid']);
-  const VAX_OPTIONS = ['Malaria (RTS,S)', 'Yellow fever', 'Cholera', 'Typhoid', 'Hepatitis A', 'COVID-19', 'Rabies'];
+// ── Disease profiles ──
+const DISEASE_PROFILES = {
+  "ebola":           { cfr:0.90, r0:2.0,  transmission:"contact",   vaccine:false, season:"Year-round", regions:null },
+  "marburg":         { cfr:0.88, r0:2.0,  transmission:"contact",   vaccine:false, season:"Year-round", regions:null },
+  "cholera": { cfr:0.50, r0:3.0, transmission:"waterborne", vaccine:true, season:"Rainy season",
+    regions:[
+      { name:"Active endemic (e.g. Nigeria, Yemen, DRC)", score:39, cls:"rc-high",   label:"High" },
+      { name:"Recurrent outbreaks (e.g. Zambia, Uganda)", score:34, cls:"rc-medium", label:"Moderate" },
+      { name:"Sporadic (e.g. India, Philippines)",        score:31, cls:"rc-low",    label:"Low" },
+      { name:"Non-endemic (e.g. US, Europe)",             score:28, cls:"rc-low",    label:"Minimal" },
+    ]
+  },
+  "measles":         { cfr:0.15, r0:15.0, transmission:"airborne",  vaccine:true,  season:"Year-round", regions:null },
+  "polio":           { cfr:0.10, r0:6.0,  transmission:"fecal-oral",vaccine:true,  season:"Year-round", regions:null },
+  "dengue": { cfr:0.025, r0:3.0, transmission:"vector", vaccine:false, season:"Rainy season",
+    regions:[
+      { name:"Very high (e.g. Brazil, India, Indonesia)", score:21, cls:"rc-high",   label:"Very High" },
+      { name:"High (e.g. Bangladesh, Pakistan, Singapore)",score:17, cls:"rc-medium", label:"High" },
+      { name:"Moderate (e.g. Nigeria, Australia)",         score:14, cls:"rc-low",    label:"Moderate" },
+      { name:"Non-endemic (e.g. US, Europe)",              score:11, cls:"rc-low",    label:"Minimal" },
+    ]
+  },
+  "avian influenza": { cfr:0.60, r0:1.2,  transmission:"airborne",  vaccine:false, season:"Year-round", regions:null },
+  "lassa":           { cfr:0.30, r0:2.0,  transmission:"contact",   vaccine:false, season:"Dry season (W. Africa)", regions:null },
+  "yellow fever": { cfr:0.40, r0:2.5, transmission:"vector", vaccine:true, season:"Rainy season",
+    regions:[
+      { name:"Endemic Africa/Americas (vaccination required)", score:35, cls:"rc-high",   label:"High" },
+      { name:"Transitional (e.g. Peru, Kenya, Mali)",          score:30, cls:"rc-medium", label:"Moderate" },
+      { name:"Non-endemic (e.g. US, Europe, Asia)",            score:27, cls:"rc-low",    label:"Minimal" },
+    ]
+  },
+  "mpox":            { cfr:0.10, r0:2.5,  transmission:"contact",   vaccine:true,  season:"Year-round", regions:null },
+  "malaria": { cfr:0.20, r0:18.0, transmission:"vector", vaccine:true, season:"Rainy season",
+    regions:[
+      { name:"Sub-Saharan Africa (e.g. Nigeria, DRC)",    score:48, cls:"rc-high",   label:"High" },
+      { name:"High endemic (e.g. Kenya, Pakistan)",        score:35, cls:"rc-medium", label:"Moderate" },
+      { name:"Low endemic (e.g. India, Brazil)",           score:22, cls:"rc-low",    label:"Low" },
+      { name:"Non-endemic (e.g. US, Europe)",              score:12, cls:"rc-low",    label:"Minimal" },
+    ]
+  },
+  "typhoid": { cfr:0.15, r0:4.0, transmission:"fecal-oral", vaccine:true, season:"Year-round",
+    regions:[
+      { name:"Very high (e.g. Pakistan, India, Nepal, DRC)", score:24, cls:"rc-high",   label:"Very High" },
+      { name:"High (e.g. Philippines, Kenya, Zimbabwe)",      score:21, cls:"rc-medium", label:"High" },
+      { name:"Moderate (e.g. China, Thailand, Peru)",         score:18, cls:"rc-low",    label:"Moderate" },
+      { name:"Non-endemic (e.g. US, Europe)",                 score:15, cls:"rc-low",    label:"Minimal" },
+    ]
+  },
+  "zika": { cfr:0.01, r0:3.0, transmission:"vector", vaccine:false, season:"Rainy season",
+    regions:[
+      { name:"High — Americas (e.g. Brazil, Colombia, Mexico)", score:17, cls:"rc-high",   label:"High" },
+      { name:"Moderate — SEA/Pacific/Africa (e.g. Indonesia)",  score:13, cls:"rc-medium", label:"Moderate" },
+      { name:"Low — recently detected (e.g. Seychelles)",       score:11, cls:"rc-low",    label:"Low" },
+      { name:"Non-endemic (e.g. US, Europe)",                   score:10, cls:"rc-low",    label:"Minimal" },
+    ]
+  },
+  "chikungunya":     { cfr:0.01, r0:3.5,  transmission:"vector",    vaccine:false, season:"Rainy season", regions:null },
+  "covid":           { cfr:0.01, r0:3.5,  transmission:"airborne",  vaccine:true,  season:"Year-round",   regions:null },
+  "influenza":       { cfr:0.001,r0:2.5,  transmission:"airborne",  vaccine:true,  season:"Winter months",regions:null },
+  "rsv":             { cfr:0.001,r0:3.0,  transmission:"airborne",  vaccine:true,  season:"Winter months",regions:null },
+  "west nile":       { cfr:0.09, r0:3.0,  transmission:"vector",    vaccine:false, season:"Summer/fall",  regions:null },
+  "hepatitis a": { cfr:0.01, r0:5.0, transmission:"fecal-oral", vaccine:true, season:"Year-round",
+    regions:[
+      { name:"High endemicity (e.g. Nigeria, Pakistan, Afghanistan)", score:17, cls:"rc-high",   label:"High" },
+      { name:"Moderate (e.g. India, Indonesia, Egypt)",               score:13, cls:"rc-medium", label:"Moderate" },
+      { name:"Low (e.g. Brazil, China, South Africa)",                score:10, cls:"rc-low",    label:"Low" },
+      { name:"Very low (e.g. US, Europe)",                            score:8,  cls:"rc-low",    label:"Minimal" },
+    ]
+  },
+  "rabies": { cfr:1.00, r0:1.0, transmission:"contact", vaccine:true, season:"Year-round",
+    regions:[
+      { name:"Very high (e.g. India, Nepal, Ethiopia, Tanzania)", score:58, cls:"rc-high",   label:"Very High" },
+      { name:"High (e.g. Indonesia, Philippines, South Africa)",   score:56, cls:"rc-high",   label:"High" },
+      { name:"Moderate (e.g. Mexico, Brazil, Russia)",             score:54, cls:"rc-medium", label:"Moderate" },
+      { name:"Eliminated (e.g. US, Europe, Japan, Australia)",     score:53, cls:"rc-low",    label:"Minimal" },
+    ]
+  },
+};
 
-  // ── State ──
-  let currentLoc         = null;   // user's physical location object from /api/location
-  let currentDestination = null;   // travel destination object from /api/location
-  let currentAlerts      = [];
-  let npActiveFilter     = 'all';
-  let npCurrentData      = [];
-  let npTab              = 'nonprofits';
+// ── Disease symptoms ──
+const DISEASE_SYMPTOMS = {
+  "malaria":        ["High fever (≥38°C)", "Chills and shaking", "Severe headache", "Muscle aches", "Fatigue", "Nausea/vomiting", "Sweating"],
+  "dengue":         ["Sudden high fever", "Severe headache", "Pain behind eyes", "Muscle and joint pain", "Skin rash", "Mild bleeding (nose/gums)", "Fatigue"],
+  "cholera":        ["Profuse watery diarrhea", "Vomiting", "Rapid dehydration", "Muscle cramps", "Low blood pressure", "Rapid heart rate"],
+  "yellow fever":   ["Sudden fever", "Chills", "Severe headache", "Back pain", "Nausea", "Jaundice (yellow skin/eyes)", "Bleeding"],
+  "typhoid":        ["Sustained high fever", "Weakness", "Abdominal pain", "Headache", "Loss of appetite", "Rash (rose spots)", "Constipation or diarrhea"],
+  "hepatitis a":    ["Fatigue", "Sudden nausea", "Abdominal pain", "Jaundice", "Dark urine", "Clay-colored stool", "Loss of appetite"],
+  "rabies":         ["Fever", "Headache", "Weakness", "Discomfort at bite site", "Hydrophobia (fear of water)", "Hallucinations", "Paralysis"],
+  "zika":           ["Mild fever", "Rash", "Joint pain", "Conjunctivitis (red eyes)", "Muscle pain", "Headache", "Note: often asymptomatic"],
+  "chikungunya":    ["Sudden fever", "Severe joint pain", "Muscle pain", "Headache", "Nausea", "Fatigue", "Skin rash"],
+  "west nile":      ["Fever", "Headache", "Body aches", "Skin rash", "Swollen lymph nodes", "Note: 80% show no symptoms"],
+  "ebola":          ["Fever", "Fatigue", "Muscle pain", "Headache", "Sore throat", "Vomiting/diarrhea", "Unexplained bleeding"],
+  "marburg":        ["High fever", "Severe headache", "Malaise", "Muscle aches", "Rash", "Chest pain", "Bleeding"],
+  "mpox":           ["Fever", "Rash (face → body)", "Swollen lymph nodes", "Muscle aches", "Backache", "Exhaustion"],
+  "lassa":          ["Gradual fever", "General weakness", "Headache", "Sore throat", "Muscle pain", "Chest pain", "Vomiting", "Hearing loss"],
+  "covid":          ["Fever or chills", "Cough", "Shortness of breath", "Fatigue", "Loss of taste/smell", "Sore throat", "Body aches"],
+  "influenza":      ["Sudden fever", "Cough", "Sore throat", "Runny/stuffy nose", "Body aches", "Headache", "Fatigue", "Chills"],
+  "measles":        ["High fever", "Cough", "Runny nose", "Red watery eyes", "Koplik's spots", "Flat red rash (face → body)"],
+  "polio":          ["Fever", "Fatigue", "Headache", "Vomiting", "Stiff neck", "Limb pain", "Note: 72% asymptomatic"],
+  "avian influenza":["High fever", "Cough", "Sore throat", "Muscle aches", "Pneumonia", "Respiratory distress"],
+  "rsv":            ["Runny nose", "Decreased appetite", "Coughing", "Sneezing", "Fever", "Wheezing"],
+  "default":        ["Fever", "Fatigue", "General malaise", "Consult a healthcare provider"],
+};
 
-  // ── Screen navigation ──
-  function showScreen(name) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('screen-' + name).classList.add('active');
-    window.scrollTo(0, 0);
-  }
+// ── Disease tips (destination-specific) ──
+const DISEASE_TIPS = {
+  "malaria":        ["Take antimalarial prophylaxis (Malarone or doxycycline) 1–2 weeks before departure.", "Use DEET repellent (30%+) and sleep under insecticide-treated nets. Wear long sleeves at dusk and dawn.", "Seek care immediately if fever develops within 3 months of return — malaria is treatable when caught early."],
+  "yellow fever":   ["Vaccinate at least 10 days before travel — required for entry in many endemic countries.", "Use insect repellent and wear long clothing to reduce mosquito exposure.", "Carry your yellow fever vaccination card (Carte Jaune) for border crossings."],
+  "cholera":        ["Drink only bottled or boiled water. Avoid ice, raw shellfish, and street food.", "Wash hands thoroughly with soap and water before eating.", "Oral cholera vaccine is available and recommended for high-risk areas."],
+  "dengue":         ["No vaccine widely available — prevention is key. Use DEET repellent during the day when Aedes mosquitoes are active.", "Wear long-sleeved clothing and use bed nets even during the day.", "Seek care if fever, severe headache, or rash develops within 2 weeks of travel."],
+  "typhoid":        ["Get the typhoid vaccine 2 weeks before travel to South Asia, Africa, or Southeast Asia.", "Drink only bottled or boiled water and avoid raw foods, especially shellfish and salads.", "Seek care promptly if sustained fever develops — typhoid is treatable with antibiotics when caught early."],
+  "hepatitis a":    ["Get vaccinated — the hepatitis A vaccine is highly effective and recommended for most international travel.", "Drink only bottled or boiled water. Avoid raw shellfish, salads, and unpeeled fruit in high-risk areas.", "Wash hands thoroughly before eating and after using the bathroom."],
+  "rabies":         ["Avoid contact with animals, especially dogs, bats, and monkeys in endemic areas.", "If bitten or scratched, wash the wound immediately with soap and water for 15 minutes.", "Seek post-exposure prophylaxis (PEP) immediately after any animal bite — do not wait for symptoms."],
+  "zika":           ["Pregnant women or those planning pregnancy should avoid travel to Zika-endemic areas if possible.", "Use DEET repellent, wear long sleeves, and sleep under bed nets to prevent Aedes mosquito bites.", "Use condoms during and for at least 3 months after travel — Zika can be sexually transmitted."],
+  "chikungunya":    ["Use DEET repellent and wear long-sleeved clothing — Aedes mosquitoes bite during the day.", "There is no vaccine — prevention through mosquito avoidance is essential.", "Joint pain from chikungunya can persist for months; seek care early if symptoms appear."],
+  "west nile":      ["Use insect repellent when outdoors, especially at dawn and dusk.", "Wear long sleeves and pants when spending time outdoors in affected areas.", "80% of infections show no symptoms — if you develop fever and stiff neck, seek care immediately."],
+  "mpox":           ["Avoid close physical contact with people who have a rash or sores.", "The JYNNEOS vaccine is available — consult your doctor if you are at higher risk.", "Wash hands frequently and avoid sharing bedding or clothing with infected individuals."],
+  "measles":        ["Ensure you are fully vaccinated (2 doses of MMR) before traveling to areas with outbreaks.", "Measles spreads through the air — avoid crowded spaces during outbreaks.", "Seek care immediately if you develop fever with a rash after potential exposure."],
+  "ebola":          ["Avoid contact with blood, bodily fluids, or animals in outbreak areas.", "Do not handle remains of people who may have died from Ebola.", "Seek immediate medical care if you develop fever and bleeding after travel to affected regions."],
+  "covid":          ["Stay up to date on booster doses before travel.", "Wear a mask in crowded indoor spaces, especially in areas with low vaccination rates.", "Have a plan for testing and isolation if you develop symptoms abroad."],
+  "influenza":      ["Get a flu shot before travel, ideally matched to the hemisphere you are visiting.", "Wash hands frequently and avoid touching your face in public spaces.", "Antiviral treatment (oseltamivir) is most effective when started within 48 hours of symptoms."],
+  "default":        ["Consult a travel health clinic 4–6 weeks before departure for personalized advice.", "Wash hands frequently and avoid touching your face in public spaces.", "Carry a basic health kit including oral rehydration salts, antidiarrheal, and pain reliever."],
+};
 
-  // ── Location detection ──
-  function useMyLocation() {
-    if (!navigator.geolocation) return alert('Geolocation not supported.');
-    document.getElementById('user-content').innerHTML = '<div class="loading">Detecting your location…</div>';
-    navigator.geolocation.getCurrentPosition(
-      pos => loadUserRisk(pos.coords.latitude, pos.coords.longitude, true),
-      () => { document.getElementById('user-content').innerHTML = '<div class="empty">Location access denied. Please search a destination above.</div>'; }
-    );
-  }
+// ── Vaccination options ──
+const VAX_DISEASES = [
+  { key: "malaria",      label: "Malaria (RTS,S)" },
+  { key: "yellow fever", label: "Yellow fever" },
+  { key: "cholera",      label: "Cholera" },
+  { key: "typhoid",      label: "Typhoid" },
+  { key: "hepatitis a",  label: "Hepatitis A" },
+  { key: "covid",        label: "COVID-19" },
+  { key: "rabies",       label: "Rabies" },
+  { key: "measles",      label: "Measles (MMR)" },
+  { key: "influenza",    label: "Flu shot" },
+];
 
-  function useMyLocationNP() {
-    if (!navigator.geolocation) return alert('Geolocation not supported.');
-    document.getElementById('np-content').innerHTML = '<div class="loading">Detecting location…</div>';
-    navigator.geolocation.getCurrentPosition(
-      pos => loadNearbyNonprofits(pos.coords.latitude, pos.coords.longitude),
-      () => { document.getElementById('np-content').innerHTML = '<div class="empty">Location access denied.</div>'; }
-    );
-  }
+const userVax = new Set(["covid"]);
 
-  // ── Search handlers ──
-  document.getElementById('user-search').addEventListener('keydown', e => { if (e.key === 'Enter') geocodeSearch(e.target.value, 'user'); });
-  document.getElementById('np-search').addEventListener('keydown',   e => { if (e.key === 'Enter') geocodeSearch(e.target.value, 'np'); });
+// ── State ──
+let currentLoc         = null;
+let currentDestination = null;
+let currentAlerts      = [];
+let npActiveFilter     = "all";
+let npCurrentData      = [];
+let npTab              = "nonprofits";
+let diseaseMap         = null;
+let mapMarkers         = [];
 
-  async function geocodeSearch(query, mode) {
-    if (!query.trim()) return;
-    try {
-      const res  = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&limit=1`, { headers: { 'User-Agent': 'helping-hand/1.0' } });
-      const data = await res.json();
-      if (!data.length) {
-        const target = mode === 'user' ? 'user-content' : 'np-content';
-        document.getElementById(target).innerHTML = '<div class="empty">Location not found. Try a different search.</div>';
-        return;
+// ── Screen navigation ──
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById("screen-" + name).classList.add("active");
+  window.scrollTo(0, 0);
+  if (name === "user" && diseaseMap) setTimeout(() => diseaseMap.invalidateSize(), 200);
+}
+
+// ── Location detection ──
+function useMyLocation() {
+  if (!navigator.geolocation) return alert("Geolocation not supported.");
+  document.getElementById("user-content").innerHTML = '<div class="loading">Detecting your location…</div>';
+  navigator.geolocation.getCurrentPosition(
+    pos => loadUserRisk(pos.coords.latitude, pos.coords.longitude, true),
+    () => { document.getElementById("user-content").innerHTML = '<div class="empty">Location access denied. Please search a city and country above.</div>'; }
+  );
+}
+
+function useMyLocationNP() {
+  if (!navigator.geolocation) return alert("Geolocation not supported.");
+  document.getElementById("np-content").innerHTML = '<div class="loading">Detecting location…</div>';
+  navigator.geolocation.getCurrentPosition(
+    pos => loadNearbyNonprofits(pos.coords.latitude, pos.coords.longitude),
+    () => { document.getElementById("np-content").innerHTML = '<div class="empty">Location access denied.</div>'; }
+  );
+}
+
+// ── Search handlers ──
+document.getElementById("user-search").addEventListener("keydown", e => { if (e.key === "Enter") geocodeSearch(e.target.value, "user"); });
+document.getElementById("np-search").addEventListener("keydown",   e => { if (e.key === "Enter") geocodeSearch(e.target.value, "np"); });
+
+async function geocodeSearch(query, mode) {
+  if (!query.trim()) return;
+  try {
+    const res  = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&limit=1&accept-language=en`, { headers: { "User-Agent": "helping-hand/1.0 (contact: ngovind@unc.edu)" } });
+    const data = await res.json();
+    if (!data.length) {
+      const target = mode === "user" ? "user-content" : "np-content";
+      document.getElementById(target).innerHTML = '<div class="empty">Location not found. Try including a city and country name — e.g. "Nairobi, Kenya".</div>';
+      return;
+    }
+    const lat = parseFloat(data[0].lat);
+    const lon = parseFloat(data[0].lon);
+
+    if (mode === "user") {
+      document.getElementById("user-content").innerHTML = '<div class="loading">Loading risk data…</div>';
+      const locRes = await fetch("/api/location", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lat, lon }) });
+      currentDestination = await locRes.json();
+
+      // Force English display name from Nominatim data
+      if (data[0].display_name) {
+        const parts = data[0].display_name.split(",").map(s => s.trim());
+        currentDestination._display = parts.slice(0,2).join(", ");
       }
-      const lat = parseFloat(data[0].lat);
-      const lon = parseFloat(data[0].lon);
 
-      if (mode === 'user') {
-        // Geocode the destination to get full location object
-        document.getElementById('user-content').innerHTML = '<div class="loading">Loading risk data for destination…</div>';
-        const locRes = await fetch('/api/location', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat, lon })
-        });
-        currentDestination = await locRes.json();
+      const destName = currentDestination._display || [currentDestination.city, currentDestination.country].filter(Boolean).join(", ") || query;
+      document.getElementById("travel-dest-label").textContent = `Traveling to ${destName}`;
+      document.getElementById("travel-pill").classList.add("visible");
+      document.getElementById("user-search").value = "";
 
-        // Show travel pill
-        const destName = [currentDestination.city, currentDestination.country].filter(Boolean).join(', ') || query;
-        document.getElementById('travel-dest-label').textContent = `Traveling to ${destName}`;
-        document.getElementById('travel-pill').classList.add('visible');
-        document.getElementById('user-search').value = '';
-
-        // If we already have the user's physical location, reload with destination scoring
-        // Otherwise detect it first
-        if (currentLoc) {
-          fetchAndRenderThreats();
-        } else {
-          useMyLocation();
-        }
+      if (currentLoc) {
+        fetchAndRenderThreats();
       } else {
-        loadNearbyNonprofits(lat, lon);
+        currentLoc = currentDestination;
+        fetchAndRenderThreats();
       }
-    } catch (err) {
-      console.error('Geocode error:', err);
+    } else {
+      loadNearbyNonprofits(lat, lon);
     }
+  } catch (err) {
+    console.error("Geocode error:", err);
   }
+}
 
-  // ── Clear travel destination ──
-  function clearDestination() {
-    currentDestination = null;
-    document.getElementById('travel-pill').classList.remove('visible');
-    document.getElementById('user-search').value = '';
-    if (currentLoc) fetchAndRenderThreats();
+function clearDestination() {
+  currentDestination = null;
+  document.getElementById("travel-pill").classList.remove("visible");
+  document.getElementById("user-search").value = "";
+  if (currentLoc) fetchAndRenderThreats();
+}
+
+async function loadUserRisk(lat, lon, isPhysical = false) {
+  document.getElementById("user-content").innerHTML = '<div class="loading">Loading risk data…</div>';
+  try {
+    const locRes = await fetch("/api/location", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lat, lon }) });
+    const loc = await locRes.json();
+    if (isPhysical) currentLoc = loc;
+    await fetchAndRenderThreats();
+  } catch {
+    document.getElementById("user-content").innerHTML = '<div class="empty">Could not load data. Is the Flask server running?</div>';
   }
+}
 
-  // ── Load risk for a physical location ──
-  async function loadUserRisk(lat, lon, isPhysical = false) {
-    document.getElementById('user-content').innerHTML = '<div class="loading">Loading risk data…</div>';
-    try {
-      const locRes = await fetch('/api/location', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat, lon })
-      });
-      const loc = await locRes.json();
+async function fetchAndRenderThreats() {
+  if (!currentLoc) return;
+  document.getElementById("user-content").innerHTML = '<div class="loading">Loading risk data…</div>';
+  try {
+    const tRes = await fetch("/api/threats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: currentLoc, destination: currentDestination, lang: "en" }) });
+    const data = await tRes.json();
+    currentAlerts = data.alerts || [];
+    renderUserView(currentLoc, currentDestination, data);
+  } catch {
+    document.getElementById("user-content").innerHTML = '<div class="empty">Could not load data. Is the Flask server running?</div>';
+  }
+}
 
-      if (isPhysical) {
-        // Store as the user's actual location
-        currentLoc = loc;
+// ── Get dominant disease from alerts ──
+function getDominantDisease(alerts) {
+  if (!alerts.length) return null;
+  const top = alerts[0];
+  return top.diseases.length ? top.diseases[0] : null;
+}
+
+// ── Disease-specific tips — pulls from all active alerts, not just top one ──
+function getTipsForAlerts(alerts) {
+  if (!alerts.length) return DISEASE_TIPS["default"];
+
+  // Collect tips from the top 3 active diseases — one tip each
+  // so the tip card reflects the full risk picture, not just one disease
+  const seenDiseases = [];
+  for (const alert of alerts) {
+    for (const disease of alert.diseases) {
+      if (!seenDiseases.includes(disease) && DISEASE_TIPS[disease]) {
+        seenDiseases.push(disease);
       }
-
-      await fetchAndRenderThreats();
-    } catch {
-      document.getElementById('user-content').innerHTML = '<div class="empty">Could not load data. Is the Flask server running?</div>';
+      if (seenDiseases.length >= 3) break;
     }
+    if (seenDiseases.length >= 3) break;
   }
 
-  // ── Core: fetch threats and render ──
-  async function fetchAndRenderThreats() {
-    if (!currentLoc) return;
-    document.getElementById('user-content').innerHTML = '<div class="loading">Loading risk data…</div>';
-    try {
-      const body = {
-        location:    currentLoc,
-        destination: currentDestination,   // null if not in travel mode
-        lang:        'en'
-      };
-      const tRes = await fetch('/api/threats', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body)
-      });
-      const data = await tRes.json();
-      currentAlerts = data.alerts || [];
-      renderUserView(currentLoc, currentDestination, data);
-    } catch {
-      document.getElementById('user-content').innerHTML = '<div class="empty">Could not load data. Is the Flask server running?</div>';
-    }
+  if (!seenDiseases.length) return DISEASE_TIPS["default"];
+
+  // Pull the single most actionable tip from each disease
+  // Priority: first tip (prevention action) from each disease's array
+  const combined = seenDiseases.map(d => {
+    const tips = DISEASE_TIPS[d];
+    // Pick the most specific/actionable tip — usually the first one
+    return `[${capitalize(d)}] ${tips[0]}`;
+  });
+
+  // Fill to 3 tips minimum using secondary tips from top disease
+  const topDisease = seenDiseases[0];
+  const topTips = DISEASE_TIPS[topDisease] || DISEASE_TIPS["default"];
+  while (combined.length < 3) {
+    const next = topTips[combined.length];
+    if (next) combined.push(next);
+    else break;
   }
 
-  // ── Render main user view ──
-  function renderUserView(loc, destination, data) {
-    const isTraveling  = !!destination;
-    const scoringLoc   = destination || loc;
-    const band         = data.risk_band || 'low';
-    const avg          = data.risk_index_avg_top || 10;
-    const alerts       = data.alerts || [];
-    const tips         = data.top3_tips || data.tips || [];
+  return combined;
+}
 
-    // Display name = destination city if traveling, otherwise current location
-    const displayName  = isTraveling
-      ? ([destination.city, destination.country].filter(Boolean)[0] || 'Destination')
-      : ([loc.city, loc.state, loc.country].filter(Boolean)[0] || 'Your location');
+// ── Disease map — heat glow radial style, light tile, zoomable ──
+function initOrUpdateMap(lat, lon, alerts) {
+  // Remove old layers
+  mapMarkers.forEach(m => m.remove());
+  mapMarkers = [];
 
-    const displaySub   = isTraveling
-      ? `Traveling from ${loc.city || loc.country || 'your location'} · Scores reflect destination risk`
-      : `${[loc.city, loc.country].filter(Boolean).join(', ') || ''} · Updated just now`;
+  if (!diseaseMap) {
+    diseaseMap = L.map("disease-map", {
+      center: [lat, lon],
+      zoom: 7,
+      zoomControl: true,
+      attributionControl: true,
+      scrollWheelZoom: true,
+    });
 
-    const bandLabel = { high: 'High risk', medium: 'Moderate risk', low: 'Low risk' }[band] || 'Unknown risk';
+    // Light tile — terrain visible, colors readable against it
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+      maxZoom: 14,
+      attribution: "© OpenStreetMap © CARTO",
+    }).addTo(diseaseMap);
 
-    // Travel mode banner
-    const travelBanner = isTraveling ? `
-      <div class="travel-banner">
-        <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-        <p><strong>Travel mode active.</strong> Risk scores are calculated for ${[destination.city, destination.country].filter(Boolean).join(', ') || 'your destination'}, not your current location.</p>
-      </div>` : '';
+    // Label layer on top so city names still show
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
+      maxZoom: 14, pane: "shadowPane",
+    }).addTo(diseaseMap);
 
-    // High-risk alert banner
-    const alertBanner = band === 'high' ? `
-      <div class="alert-banner">
-        <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <p><strong>Health alert active</strong> for this region. Review risks and take precautions before travel.</p>
-      </div>` : '';
+  } else {
+    diseaseMap.setView([lat, lon], 7);
+  }
 
-    const diseaseRows = alerts.slice(0, 3).map((a, i) => {
-      const score = Math.round(a.risk_index || 0);
-      const tier  = a.tier || 'monitor';
-      const cls   = tier === 'emergency' ? 'high' : tier === 'seek_care' ? 'medium' : 'low';
-      const name  = a.diseases.length ? capitalize(a.diseases[0]) : 'General alert';
-      const meta  = a.diseases.length > 1 ? a.diseases.slice(1).map(capitalize).join(', ') : (a.title ? truncate(a.title, 45) : 'Health alert');
-      return `
-        <div class="disease-row" onclick="openDiseaseDetail(${i})" role="button" tabindex="0">
-          <div class="d-rank">${i + 1}</div>
-          <div class="d-info"><div class="d-name">${name}</div><div class="d-meta">${meta}</div></div>
-          <div class="d-right">
-            <div class="d-score ${cls}">${score}</div>
-            <div class="d-bar-bg"><div class="d-bar bar-${cls}" style="width:${Math.min(score, 100)}%"></div></div>
+  // ── Heat glow layers — large semi-transparent circles per disease ──
+  // Each disease gets a big radial glow centered on the searched location.
+  // Glow radius scales with risk score so high-risk diseases fill more area.
+  // Multiple diseases stack with different colors creating a blended heat map.
+  const seenDiseases = new Set();
+
+  alerts.forEach((alert, idx) => {
+    const disease = alert.diseases[0];
+    if (!disease || seenDiseases.has(disease)) return;
+    seenDiseases.add(disease);
+
+    const color = getDiseaseColor(disease);
+    const score = alert.risk_index || 10;
+
+    // Outer glow — very large, very transparent. Creates the "heat" feel.
+    // Radius: 60–200km based on risk score (high risk = wider spread shown)
+    const outerRadius = Math.max(60000, Math.min(200000, score * 2800));
+    const outerGlow = L.circle([lat, lon], {
+      radius: outerRadius,
+      color: "transparent",
+      fillColor: color,
+      fillOpacity: Math.min(0.18, 0.06 + (score / 100) * 0.12),
+      weight: 0,
+    }).addTo(diseaseMap);
+    mapMarkers.push(outerGlow);
+
+    // Mid glow — medium radius, slightly more opaque
+    const midRadius = outerRadius * 0.55;
+    const midGlow = L.circle([lat, lon], {
+      radius: midRadius,
+      color: "transparent",
+      fillColor: color,
+      fillOpacity: Math.min(0.30, 0.10 + (score / 100) * 0.20),
+      weight: 0,
+    }).addTo(diseaseMap);
+    mapMarkers.push(midGlow);
+
+    // Core — dense center showing epicenter intensity
+    const coreRadius = outerRadius * 0.20;
+    const coreGlow = L.circle([lat, lon], {
+      radius: coreRadius,
+      color: color,
+      fillColor: color,
+      fillOpacity: Math.min(0.55, 0.20 + (score / 100) * 0.35),
+      weight: 1.5,
+      opacity: 0.5,
+    }).addTo(diseaseMap);
+    mapMarkers.push(coreGlow);
+
+    // Label marker at core — shows disease name + score
+    const labelIcon = L.divIcon({
+      html: `<div style="
+        background: ${color};
+        color: white;
+        font-size: 11px;
+        font-weight: 700;
+        font-family: Inter, sans-serif;
+        padding: 3px 8px;
+        border-radius: 999px;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px ${color}80;
+        border: 1.5px solid rgba(255,255,255,0.6);
+        pointer-events: none;
+      ">${capitalize(disease)} · ${Math.round(score)}</div>`,
+      className: "",
+      iconAnchor: [0, 0],
+    });
+
+    // Offset label slightly so multiple diseases don't perfectly overlap
+    const labelOffset = idx * 0.18;
+    const labelAngle  = (idx * 110) % 360;
+    const labelLat    = lat + labelOffset * Math.cos(labelAngle * Math.PI / 180);
+    const labelLon    = lon + labelOffset * Math.sin(labelAngle * Math.PI / 180);
+
+    const labelMarker = L.marker([labelLat, labelLon], { icon: labelIcon }).addTo(diseaseMap);
+    const tierText = alert.tier === "emergency" ? "⚠ High risk — seek care if symptomatic"
+                   : alert.tier === "seek_care"  ? "• Moderate — see a doctor if exposed"
+                   :                               "✓ Monitor — standard precautions";
+    labelMarker.bindPopup(`
+      <div style="font-family:Inter,sans-serif;min-width:160px">
+        <div style="color:${color};font-weight:700;font-size:14px;margin-bottom:4px">${capitalize(disease)}</div>
+        <div style="font-size:12px;margin-bottom:2px">Risk score: <b>${Math.round(score)}</b> / 100</div>
+        <div style="font-size:11px;color:#666">${tierText}</div>
+      </div>
+    `);
+    mapMarkers.push(labelMarker);
+  });
+
+  // Center dot — user's exact searched location
+  const centerIcon = L.divIcon({
+    html: `<div style="
+      width: 14px; height: 14px;
+      background: #1a3a52;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.4);
+    "></div>`,
+    className: "", iconAnchor: [7, 7]
+  });
+  const centerMarker = L.marker([lat, lon], { icon: centerIcon, zIndexOffset: 1000 }).addTo(diseaseMap);
+  centerMarker.bindPopup("<b>Searched location</b><br>100-mile radius shown");
+  mapMarkers.push(centerMarker);
+
+  // 100-mile boundary ring — subtle guide
+  const boundaryRing = L.circle([lat, lon], {
+    radius: 160934,
+    color: "rgba(80,80,80,0.35)",
+    fillColor: "transparent",
+    weight: 1.5,
+    dashArray: "6 4",
+  }).addTo(diseaseMap);
+  mapMarkers.push(boundaryRing);
+
+  setTimeout(() => diseaseMap.invalidateSize(), 100);
+}
+
+// ── Render main user view ──
+function renderUserView(loc, destination, data) {
+  const isTraveling = !!destination;
+  const band        = data.risk_band || "low";
+  const avg         = data.risk_index_avg_top || 10;
+  const alerts      = data.alerts || [];
+
+  const scoringLoc  = destination || loc;
+  const displayName = isTraveling
+    ? (destination._display || [destination.city, destination.country].filter(Boolean)[0] || "Destination")
+    : ([loc.city, loc.state, loc.country].filter(Boolean)[0] || "Your location");
+
+  const displaySub  = isTraveling
+    ? `Traveling from ${loc.city || loc.country || "your location"} · Scores reflect destination risk`
+    : `${[loc.city, loc.country].filter(Boolean).join(", ") || ""} · Updated just now`;
+
+  const bandLabel = { high: "High risk", medium: "Moderate risk", low: "Low risk" }[band] || "Unknown risk";
+  const dominantDisease = getDominantDisease(alerts);
+  const tips = getTipsForAlerts(alerts);
+
+  const travelBanner = isTraveling ? `
+    <div class="travel-banner">
+      <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      <p><strong>Travel mode active.</strong> Risk scores are calculated for ${destination._display || [destination.city, destination.country].filter(Boolean).join(", ") || "your destination"}, not your current location.</p>
+    </div>` : "";
+
+  const alertBanner = band === "high" ? `
+    <div class="alert-banner">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <p><strong>Health alert active</strong> for this region. Review risks and take precautions before travel.</p>
+    </div>` : "";
+
+  const diseaseRows = alerts.slice(0, 3).map((a, i) => {
+    const score   = Math.round(a.risk_index || 0);
+    const tier    = a.tier || "monitor";
+    const cls     = tier === "emergency" ? "high" : tier === "seek_care" ? "medium" : "low";
+    const name    = a.diseases.length ? capitalize(a.diseases[0]) : "General alert";
+    const meta    = a.diseases.length > 1 ? a.diseases.slice(1).map(capitalize).join(", ") : (a.title ? truncate(a.title, 45) : "Health alert");
+    const dColor  = a.diseases[0] ? getDiseaseColor(a.diseases[0]) : getDiseaseColor("default");
+    return `
+      <div class="disease-row" onclick="openDiseaseDetail(${i})" role="button" tabindex="0">
+        <div class="d-dot" style="background:${dColor}"></div>
+        <div class="d-rank">${i + 1}</div>
+        <div class="d-info"><div class="d-name">${name}</div><div class="d-meta">${meta}</div></div>
+        <div class="d-right">
+          <div class="d-score ${cls}">${score}</div>
+          <div class="d-bar-bg"><div class="d-bar bar-${cls}" style="width:${Math.min(score,100)}%"></div></div>
+        </div>
+        <div class="d-chevron">›</div>
+      </div>`;
+  }).join("");
+
+  const hourlyItems = alerts.slice(0, 6).map((a, i) => {
+    const score = Math.round(a.risk_index || 0);
+    const tier  = a.tier || "monitor";
+    const cls   = tier === "emergency" ? "high" : tier === "seek_care" ? "medium" : "low";
+    const lbl   = a.diseases[0] ? capitalize(a.diseases[0]).slice(0, 6) : `Alert ${i+1}`;
+    const dColor= a.diseases[0] ? getDiseaseColor(a.diseases[0]) : "#95A5A6";
+    return `<div class="hourly-item"><div class="hourly-label" style="color:${dColor}">${lbl}</div><div class="hourly-dot dot-${cls}">${score > 60 ? "⚠" : score > 30 ? "•" : "✓"}</div><div class="hourly-score">${score}</div></div>`;
+  }).join("");
+
+  // Vaccination chips — colored by vaccination status + disease risk at destination
+  const alertDiseases = new Set(alerts.flatMap(a => a.diseases));
+  const alertTiers    = {};
+  alerts.forEach(a => a.diseases.forEach(d => { if (!alertTiers[d]) alertTiers[d] = a.tier; }));
+
+  const vaxChips = VAX_DISEASES.map(v => {
+    const isVax     = userVax.has(v.key);
+    const riskTier  = alertTiers[v.key];
+    const dColor    = getDiseaseColor(v.key);
+    const vaxCls    = isVax ? "chip-vax" : "chip-novax";
+    let   riskRing  = "";
+    if (riskTier === "emergency")  riskRing = " chip-risk-high";
+    else if (riskTier === "seek_care") riskRing = " chip-risk-medium";
+    else if (alertDiseases.has(v.key)) riskRing = " chip-risk-low";
+    return `<button class="chip ${vaxCls}${riskRing}" onclick="openVaxPopup('${v.key}','${v.label}',${isVax})">
+      <span style="width:8px;height:8px;border-radius:50%;background:${dColor};flex-shrink:0"></span>
+      ${v.label}
+    </button>`;
+  }).join("") + `<button class="chip chip-add" onclick="alert('Prior illness logging coming soon!')">+ Prior illness</button>`;
+
+  const newsRows = alerts.slice(0, 4).map(a => `
+    <div class="news-row">
+      <div class="news-src">${a.source && a.source.includes("who") ? "WHO" : "CDC"} · ${formatDate(a.published)}</div>
+      <div class="news-title">${a.title || "Health alert"}</div>
+      ${a.link ? `<a class="news-link" href="${a.link}" target="_blank">Read more →</a>` : ""}
+    </div>`).join("");
+
+  const tipSvgs = [
+    '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    '<path d="M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  ];
+  const tipRows = tips.slice(0, 3).map((t, i) => `
+    <div class="tip-row-g">
+      <div class="tip-ic-g"><svg viewBox="0 0 24 24">${tipSvgs[i]}</svg></div>
+      <div class="tip-txt-g">${t}</div>
+    </div>`).join("");
+
+  // Map legend — only diseases present in alerts
+  const legendItems = alerts.flatMap(a => a.diseases).filter((d,i,arr) => arr.indexOf(d) === i).slice(0,8).map(d =>
+    `<div class="map-legend-item"><div class="map-legend-dot" style="background:${getDiseaseColor(d)}"></div>${capitalize(d)}</div>`
+  ).join("");
+
+  const alertsHeader = isTraveling
+    ? `Recent WHO &amp; CDC alerts · scored for ${destination._display || [destination.city, destination.country].filter(Boolean).join(", ") || "destination"}`
+    : `Recent WHO &amp; CDC alerts for ${loc.country || "your area"}`;
+
+  document.getElementById("user-content").innerHTML = `
+    <div class="risk-hero">
+      <div class="risk-loc-name">${displayName}</div>
+      <div class="risk-loc-sub">${displaySub}</div>
+      <div class="risk-number ${band}">${avg}</div>
+      <div class="risk-label">${bandLabel}</div>
+      <div class="risk-hl"><span>H:${Math.min(avg+8,100)}</span><span>L:${Math.max(avg-10,0)}</span></div>
+    </div>
+    ${travelBanner}${alertBanner}
+    <div class="glass-card">
+      <div class="card-header">Disease activity map · 100-mile radius</div>
+      <div class="map-container"><div id="disease-map"></div></div>
+      <div class="map-legend">
+        <div class="map-legend-title">Disease key</div>
+        <div class="map-legend-items">${legendItems || '<span style="font-size:11px;color:rgba(255,255,255,0.4)">No active disease alerts in this area</span>'}</div>
+      </div>
+      <div class="map-note">Bubble size reflects composite risk score. Radius = 100 miles from searched location. Data: WHO/CDC alerts.</div>
+    </div>
+    <div class="glass-card">
+      <div class="card-header">Risk by alert</div>
+      <div class="hourly-strip">${hourlyItems || '<div style="padding:12px 16px;font-size:13px;color:rgba(168,255,120,0.8)">✓ No active disease alerts for this area.</div>'}</div>
+    </div>
+    <div class="glass-card">
+      <div class="card-header">Top 3 disease risks — tap for details</div>
+      <div class="disclaimer-row">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        ${isTraveling ? "Scores reflect risk at your destination." : "Scores estimated from WHO/CDC data."} Tap any disease for symptoms and tips.
+      </div>
+      ${diseaseRows || `
+        <div style="padding:16px;text-align:center">
+          <div style="font-size:28px;margin-bottom:8px">✓</div>
+          <div style="font-size:15px;font-weight:500;color:rgba(168,255,120,0.9);margin-bottom:6px">No high-risk disease alerts here</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.55);line-height:1.6">This area has low endemic disease burden.<br>Standard travel precautions apply.</div>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08)">
+          <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.5);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Recommended vaccinations before travel</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <div style="font-size:12px;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2)">✓ COVID-19 (up to date)</div>
+            <div style="font-size:12px;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2)">✓ Influenza (annual)</div>
+            <div style="font-size:12px;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2)">✓ Hepatitis A</div>
+            <div style="font-size:12px;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2)">✓ Routine vaccines (MMR, Tdap)</div>
           </div>
-          <div class="d-chevron">›</div>
-        </div>`;
-    }).join('');
-
-    const hourlyItems = alerts.slice(0, 6).map((a, i) => {
-      const score = Math.round(a.risk_index || 0);
-      const tier  = a.tier || 'monitor';
-      const cls   = tier === 'emergency' ? 'high' : tier === 'seek_care' ? 'medium' : 'low';
-      const lbl   = a.diseases[0] ? capitalize(a.diseases[0]).slice(0, 6) : `Alert ${i + 1}`;
-      return `<div class="hourly-item"><div class="hourly-label">${lbl}</div><div class="hourly-dot dot-${cls}">${score > 60 ? '⚠' : score > 30 ? '•' : '✓'}</div><div class="hourly-score">${score}</div></div>`;
-    }).join('');
-
-    const vaxChips = VAX_OPTIONS.map(v => {
-      const key = v.toLowerCase(); const on = userVax.has(key) ? 'on' : '';
-      return `<div class="chip ${on}" onclick="toggleVax(this,'${key}')">${v}</div>`;
-    }).join('') + `<div class="chip chip-add" onclick="alert('Prior illness logging coming soon!')">+ Prior illness</div>`;
-
-    const newsRows = alerts.slice(0, 4).map(a => `
-      <div class="news-row">
-        <div class="news-src">${a.source && a.source.includes('who') ? 'WHO' : 'CDC'} · ${formatDate(a.published)}</div>
-        <div class="news-title">${a.title || 'Health alert'}</div>
-        ${a.link ? `<a class="news-link" href="${a.link}" target="_blank">Read more →</a>` : ''}
-      </div>`).join('');
-
-    const tipSvgs = [
-      '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
-      '<path d="M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
-      '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
-    ];
-    const tipRows = tips.slice(0, 3).map((t, i) => `
-      <div class="tip-row-g">
-        <div class="tip-ic-g"><svg viewBox="0 0 24 24">${tipSvgs[i]}</svg></div>
-        <div class="tip-txt-g">${t}</div>
-      </div>`).join('');
-
-    const alertsHeader = isTraveling
-      ? `Recent WHO &amp; CDC alerts · scored for ${[destination.city, destination.country].filter(Boolean).join(', ') || 'destination'}`
-      : `Recent WHO &amp; CDC alerts for ${loc.country || 'your area'}`;
-
-    document.getElementById('user-content').innerHTML = `
-      <div class="risk-hero">
-        <div class="risk-loc-name">${displayName}</div>
-        <div class="risk-loc-sub">${displaySub}</div>
-        <div class="risk-number ${band}">${avg}</div>
-        <div class="risk-label">${bandLabel}</div>
-        <div class="risk-hl"><span>H:${Math.min(avg + 8, 100)}</span><span>L:${Math.max(avg - 10, 0)}</span></div>
-      </div>
-      ${travelBanner}
-      ${alertBanner}
-      <div class="glass-card">
-        <div class="card-header">Risk by alert</div>
-        <div class="hourly-strip">${hourlyItems || '<div style="padding:12px 16px;font-size:13px;color:rgba(255,255,255,0.5)">No alerts found.</div>'}</div>
-      </div>
-      <div class="glass-card">
-        <div class="card-header">Top 3 disease risks — tap for details</div>
-        <div class="disclaimer-row">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          ${isTraveling ? 'Scores reflect risk at your destination. Add your vaccination record below for a personalized profile.' : 'Scores estimated from WHO/CDC data. Add your vaccination record below for a personalized profile.'}
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:10px">Source: CDC travel health recommendations for low-risk destinations</div>
         </div>
-        ${diseaseRows || '<div style="padding:12px 16px;font-size:13px;color:rgba(255,255,255,0.5)">No disease alerts for this location.</div>'}
+      `}
+    </div>
+    <div class="glass-card">
+      <div class="card-header">My vaccinations &amp; immunity <span style="font-weight:400;color:rgba(255,255,255,0.4);font-size:10px;margin-left:4px">tap any to see symptoms</span></div>
+      <div class="vax-body">
+        <div class="vax-subtitle">Green = vaccinated · Red = not vaccinated · Glowing ring = active risk at destination. Tap any chip for symptoms and tips.</div>
+        <div class="chip-wrap" id="vax-chips">${vaxChips}</div>
       </div>
-      <div class="glass-card">
-        <div class="card-header">My vaccinations &amp; immunity <span style="font-weight:400;color:rgba(255,255,255,0.4);font-size:10px;margin-left:4px">optional</span></div>
-        <div class="vax-body">
-          <div class="vax-subtitle">Tap to mark vaccinations you've received — adjusts your personal risk score.</div>
-          <div class="chip-wrap" id="vax-chips">${vaxChips}</div>
+    </div>
+    <div class="glass-card">
+      <div class="card-header">${alertsHeader}</div>
+      ${newsRows || '<div style="padding:12px 16px;font-size:13px;color:rgba(255,255,255,0.5)">No recent alerts found.</div>'}
+    </div>
+    <div class="glass-card">
+      <div class="card-header">Top tips for ${dominantDisease ? capitalize(dominantDisease) + " risk at your " : ""}${isTraveling ? "destination" : "location"}</div>
+      ${tipRows || '<div style="padding:12px 16px;font-size:13px;color:rgba(255,255,255,0.5)">No tips available.</div>'}
+    </div>
+    <div class="footer-note">Not a substitute for medical advice. Consult a travel health clinic before your trip.<br>Data: WHO, CDC · Scores based on CFR, R₀, transmission route, vaccine availability.</div>`;
+
+  // Initialize map after DOM is ready
+  const mapLoc = scoringLoc || loc;
+  if (mapLoc && mapLoc.lat && mapLoc.lon) {
+    setTimeout(() => initOrUpdateMap(mapLoc.lat, mapLoc.lon, alerts), 100);
+  }
+}
+
+// ── Vaccination chip popup ──
+function openVaxPopup(diseaseKey, diseaseLabel, isVaccinated) {
+  const score     = (() => { const a = currentAlerts.find(a => a.diseases.includes(diseaseKey)); return a ? Math.round(a.risk_index) : null; })();
+  const tier      = (() => { const a = currentAlerts.find(a => a.diseases.includes(diseaseKey)); return a ? a.tier : null; })();
+  const symptoms  = DISEASE_SYMPTOMS[diseaseKey] || DISEASE_SYMPTOMS["default"];
+  const tips      = DISEASE_TIPS[diseaseKey] || DISEASE_TIPS["default"];
+  const color     = getDiseaseColor(diseaseKey);
+  const profile   = DISEASE_PROFILES[diseaseKey] || {};
+
+  const scoreCls = tier === "emergency" ? "high" : tier === "seek_care" ? "medium" : "low";
+  const scoreHtml = score !== null ? `
+    <div class="popup-score-row">
+      <div class="popup-score-num ${scoreCls}" style="color:${tier === 'emergency' ? 'var(--coral)' : tier === 'seek_care' ? 'var(--amber)' : 'var(--mint)'}">${score}</div>
+      <div class="popup-score-lbl"><strong>Risk score at ${(currentDestination || currentLoc)?.city || "your location"}</strong>${tier === 'emergency' ? 'High risk — seek care if symptomatic' : tier === 'seek_care' ? 'Moderate — see a doctor if exposed' : 'Low — standard precautions'}</div>
+    </div>` : `<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:12px">No active alerts for ${diseaseLabel} at this location.</div>`;
+
+  const symptomsHtml = symptoms.map(s => `<div class="symptom-tag">${s}</div>`).join("");
+  const tipsHtml = tips.slice(0,3).map(t => `<p class="popup-tip">${t}</p>`).join("");
+  const vaxBadge = `<div class="popup-vax-badge ${isVaccinated ? 'badge-vaxxed' : 'badge-notvaxxed'}">
+    ${isVaccinated ? "✓ You are vaccinated" : "✗ Not vaccinated"}
+    ${!isVaccinated && profile.vaccine ? " — vaccine available" : ""}
+    ${isVaccinated ? " — vaccination doesn't guarantee full protection" : ""}
+  </div>`;
+
+  document.getElementById("popup-dot").style.background = color;
+  document.getElementById("popup-title-text").textContent = diseaseLabel;
+  document.getElementById("popup-body").innerHTML = `
+    ${vaxBadge}
+    ${scoreHtml}
+    <div class="popup-section-lbl">Symptoms to watch for</div>
+    <div class="symptom-list">${symptomsHtml}</div>
+    <div class="popup-section-lbl">Prevention tips${score !== null ? " for your destination" : ""}</div>
+    ${tipsHtml}
+    <div style="margin-top:12px;font-size:10px;color:rgba(255,255,255,0.4)">Source: WHO fact sheets · Not a substitute for medical advice</div>`;
+
+  document.getElementById("symptom-popup").style.display = "flex";
+  document.body.style.overflow = "hidden";
+}
+
+function closePopup(e) {
+  if (e.target.id === "symptom-popup") closePopupDirect();
+}
+function closePopupDirect() {
+  document.getElementById("symptom-popup").style.display = "none";
+  document.body.style.overflow = "";
+}
+
+// ── Disease detail screen ──
+function openDiseaseDetail(alertIdx) {
+  const alert = currentAlerts[alertIdx];
+  if (!alert) return;
+  document.getElementById("detail-back-btn").onclick = () => showScreen("user");
+
+  const diseaseName = alert.diseases[0] || "unknown";
+  const profile     = DISEASE_PROFILES[diseaseName] || {};
+  const score       = Math.round(alert.risk_index || 0);
+  const tier        = alert.tier || "monitor";
+  const cls         = tier === "emergency" ? "high" : tier === "seek_care" ? "medium" : "low";
+  const bandLabel   = { emergency: "High — seek care immediately", seek_care: "Moderate — see a doctor", monitor: "Low — standard precautions" }[tier] || "Monitor conditions";
+  const dColor      = getDiseaseColor(diseaseName);
+
+  const isTraveling = !!currentDestination;
+  const scoringLoc  = currentDestination || currentLoc;
+  const locName     = scoringLoc ? (scoringLoc._display || [scoringLoc.city, scoringLoc.country].filter(Boolean).join(", ")) : "Your location";
+  const locLabel    = isTraveling ? `Destination: ${locName}` : locName;
+
+  document.getElementById("detail-nav-title").textContent = capitalize(diseaseName);
+
+  const hasVax   = userVax.has(diseaseName);
+  const adjScore = profile.vaccine ? Math.round(score * 0.75) : score;
+
+  const vaxRows = `
+    <div class="vax-status-row"><div class="vax-status-lbl">Vaccine available</div><div class="status-badge ${profile.vaccine ? 'badge-yes' : 'badge-no'}">${profile.vaccine ? "Yes" : "No"}</div></div>
+    <div class="vax-status-row"><div class="vax-status-lbl">Your vaccination logged</div><div class="status-badge ${hasVax ? 'badge-yes' : 'badge-no'}">${hasVax ? "Logged" : "Not logged"}</div></div>
+    ${profile.vaccine ? `<div class="vax-status-row"><div class="vax-status-lbl">Score if vaccinated</div><div class="status-badge badge-adj">~${adjScore} (estimated)</div></div>` : ""}`;
+
+  const regionRows = profile.regions
+    ? profile.regions.map(r => `<div class="region-row"><div class="region-name">${r.name}</div><div class="region-score ${r.cls}">${r.score} · ${r.label}</div></div>`).join("")
+    : `<div class="region-row"><div class="region-name">Risk is not strongly region-dependent</div><div class="region-score rc-medium">Global</div></div>`;
+
+  const symptoms = DISEASE_SYMPTOMS[diseaseName] || DISEASE_SYMPTOMS["default"];
+  const symptomsHtml = symptoms.map(s => `<div class="symptom-tag">${s}</div>`).join("");
+
+  const tips    = DISEASE_TIPS[diseaseName] || DISEASE_TIPS["default"];
+  const tipSvgs = [
+    '<path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>',
+    '<path d="M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    '<circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>',
+  ];
+  const tipRows = tips.map((t, i) => `
+    <div class="detail-tip-row">
+      <div class="detail-tip-ic"><svg viewBox="0 0 24 24">${tipSvgs[i % 3]}</svg></div>
+      <div class="detail-tip-txt">${t}</div>
+    </div>`).join("");
+
+  document.getElementById("detail-content").innerHTML = `
+    <div class="detail-hero">
+      <div class="detail-disease-name">
+        <div class="detail-d-dot" style="background:${dColor}"></div>
+        ${capitalize(diseaseName)}
+      </div>
+      <div class="detail-location">${locLabel} · Updated just now</div>
+      <div class="detail-score-big ${cls}">${score}</div>
+      <div class="detail-score-lbl">risk score</div>
+      <div class="detail-pill pill-${cls}">${bandLabel}</div>
+    </div>
+    <div class="glass-card">
+      <div class="card-header">Epidemiological profile</div>
+      <div class="stat-grid">
+        <div class="stat-cell"><div class="stat-lbl">CFR</div><div class="stat-val">${(profile.cfr * 100).toFixed(profile.cfr < 0.01 ? 1 : 0)}%</div><div class="stat-sub">Case fatality rate</div></div>
+        <div class="stat-cell"><div class="stat-lbl">R₀</div><div class="stat-val">${profile.r0 || "—"}</div><div class="stat-sub">Reproduction number</div></div>
+        <div class="stat-cell"><div class="stat-lbl">Transmission</div><div class="stat-val">${capitalize(profile.transmission || "Unknown")}</div><div class="stat-sub">&nbsp;</div></div>
+        <div class="stat-cell"><div class="stat-lbl">Peak season</div><div class="stat-val" style="font-size:13px">${profile.season || "Year-round"}</div><div class="stat-sub">&nbsp;</div></div>
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar-lbl"><span>Composite risk score</span><span>${score} / 100</span></div>
+        <div class="score-bar-track"><div class="score-bar-fill fill-${cls}" style="width:${score}%"></div></div>
+      </div>
+    </div>
+    <div class="glass-card"><div class="card-header">Symptoms to watch for</div>
+      <div style="padding:12px 14px"><div class="symptom-list">${symptomsHtml}</div></div>
+    </div>
+    <div class="glass-card"><div class="card-header">Vaccine &amp; immunity status</div>${vaxRows}</div>
+    <div class="glass-card"><div class="card-header">Risk by region</div>${regionRows}</div>
+    <div class="glass-card">
+      <div class="card-header">Safety tips for this destination</div>
+      ${tipRows}
+      <div class="detail-source">Source: WHO · CDC · Not a substitute for medical advice.</div>
+    </div>
+    <div class="footer-note">CFR and R₀ values from WHO fact sheets &amp; JOGH 1996–2023 outbreak analysis.<br>Scores: CFR 45% · R₀ 30% · Transmission 15% · Vaccine 10%.</div>`;
+
+  showScreen("detail");
+}
+
+// ── Nonprofit tab / filter ──
+function switchNPTab(tab) {
+  npTab = tab;
+  document.getElementById("tab-np").classList.toggle("active", tab === "nonprofits");
+  document.getElementById("tab-db").classList.toggle("active", tab === "database");
+  document.getElementById("np-filter-bar").style.display = tab === "nonprofits" ? "flex" : "none";
+  if (tab === "database") loadPandemicDB(); else renderNPList(npCurrentData);
+}
+
+function toggleFilter(el, filter) {
+  document.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("on"));
+  el.classList.add("on"); npActiveFilter = filter; renderNPList(npCurrentData);
+}
+
+async function loadNearbyNonprofits(lat, lon) {
+  document.getElementById("np-content").innerHTML = '<div class="loading">Finding nonprofits near you…</div>';
+  try {
+    const res = await fetch("/api/nonprofits/nearby", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lat, lon, radius_miles: 25 }) });
+    npCurrentData = await res.json();
+    if (npTab === "nonprofits") renderNPList(npCurrentData);
+  } catch { document.getElementById("np-content").innerHTML = '<div class="empty">Could not load nonprofits.</div>'; }
+}
+
+function renderNPList(data) {
+  const filtered = npActiveFilter === "all" ? data : data.filter(n => (n.type || n.category || "").toLowerCase().includes(npActiveFilter));
+  if (!filtered.length) { document.getElementById("np-content").innerHTML = '<div class="empty">No health organizations found. Try a different location or filter.</div>'; return; }
+  const cards = filtered.map(n => `
+    <div class="np-row">
+      <div class="np-ic"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+      <div class="np-info"><div class="np-name">${n.name || "Nonprofit"}</div><div class="np-type">${n.type || n.category || "Health organization"}</div></div>
+      <div class="np-dist">${n.distance_miles ? n.distance_miles.toFixed(1) + " mi" : ""}</div>
+    </div>`).join("");
+  document.getElementById("np-content").innerHTML = `<div class="glass-card">${cards}</div>`;
+}
+
+async function loadPandemicDB() {
+  document.getElementById("np-content").innerHTML = '<div class="loading">Loading pandemic database…</div>';
+  try {
+    const res  = await fetch("/api/pandemics");
+    const data = await res.json();
+    if (!data.length) { document.getElementById("np-content").innerHTML = '<div class="empty">No pandemic data found.</div>'; return; }
+    const rows = data.map(p => {
+      const status   = (p.status || "").toLowerCase();
+      const badgeCls = status === "eradicated" ? "badge-erad" : status === "ongoing" ? "badge-ongoing" : "badge-cont";
+      return `<div class="db-row"><div class="db-year">${p.year || "—"}</div><div class="db-info"><div class="db-disease">${p.name || p.disease || "Unknown"}</div><div class="db-method">${p.method || p.control_method || ""}</div></div><div class="db-badge ${badgeCls}">${p.status || "Contained"}</div></div>`;
+    }).join("");
+    document.getElementById("np-content").innerHTML = `<div class="glass-card">${rows}</div><div class="footer-note">Historical eradication &amp; containment data. Source: WHO, CDC peer-reviewed studies.</div>`;
+  } catch { document.getElementById("np-content").innerHTML = '<div class="empty">Could not load pandemic database.</div>'; }
+}
+
+// ── Vaccination modal (landing screen) ──
+const VAX_MODAL_ITEMS = [
+  { key: "malaria",      label: "Malaria (RTS,S)",    desc: "Recommended for sub-Saharan Africa travel" },
+  { key: "yellow fever", label: "Yellow fever",        desc: "Required for entry to many African/S. American countries" },
+  { key: "cholera",      label: "Cholera",             desc: "Recommended for high-risk areas with poor water access" },
+  { key: "typhoid",      label: "Typhoid",             desc: "Recommended for South Asia, Africa, Southeast Asia" },
+  { key: "hepatitis a",  label: "Hepatitis A",         desc: "Recommended for most international travel" },
+  { key: "covid",        label: "COVID-19",            desc: "Including boosters" },
+  { key: "rabies",       label: "Rabies (pre-exposure)",desc: "Recommended for extended travel to endemic areas" },
+  { key: "measles",      label: "Measles (MMR)",       desc: "2 doses required for full protection" },
+  { key: "influenza",    label: "Flu shot (seasonal)", desc: "Recommended annually before travel" },
+  { key: "polio",        label: "Polio booster",       desc: "Required for some countries; booster if not recent" },
+  { key: "hepatitis b",  label: "Hepatitis B",         desc: "Recommended for long-term travel or medical exposure" },
+];
+
+function openVaxModal() {
+  const list = document.getElementById("vax-check-list");
+  list.innerHTML = VAX_MODAL_ITEMS.map(v => {
+    const checked = userVax.has(v.key);
+    const color   = getDiseaseColor(v.key);
+    return `
+      <div class="vax-check-item${checked ? " checked" : ""}" onclick="toggleVaxModal(this,'${v.key}')" data-key="${v.key}">
+        <div class="vax-check-dot" style="background:${color}"></div>
+        <div class="vax-check-info">
+          <div class="vax-check-name">${v.label}</div>
+          <div class="vax-check-desc">${v.desc}</div>
         </div>
-      </div>
-      <div class="glass-card">
-        <div class="card-header">${alertsHeader}</div>
-        ${newsRows || '<div style="padding:12px 16px;font-size:13px;color:rgba(255,255,255,0.5)">No recent alerts found.</div>'}
-      </div>
-      <div class="glass-card">
-        <div class="card-header">Top 3 safety tips</div>
-        ${tipRows || '<div style="padding:12px 16px;font-size:13px;color:rgba(255,255,255,0.5)">No tips available.</div>'}
-      </div>
-      <div class="footer-note">Not a substitute for medical advice. Consult a travel health clinic before your trip.<br>Data: WHO, CDC · Scores based on CFR, R₀, transmission route, vaccine availability.</div>`;
+        <div class="vax-check-box">${checked ? "✓" : ""}</div>
+      </div>`;
+  }).join("");
+  document.getElementById("vax-modal").style.display = "flex";
+  document.body.style.overflow = "hidden";
+}
+
+function toggleVaxModal(el, key) {
+  if (userVax.has(key)) {
+    userVax.delete(key);
+    el.classList.remove("checked");
+    el.querySelector(".vax-check-box").textContent = "";
+  } else {
+    userVax.add(key);
+    el.classList.add("checked");
+    el.querySelector(".vax-check-box").textContent = "✓";
   }
+}
 
-  // ── Disease detail screen ──
-  function openDiseaseDetail(alertIdx) {
-    const alert = currentAlerts[alertIdx];
-    if (!alert) return;
-    document.getElementById('detail-back-btn').onclick = () => showScreen('user');
-
-    const diseaseName = alert.diseases[0] || 'unknown';
-    const profile     = DISEASE_PROFILES[diseaseName] || {};
-    const score       = Math.round(alert.risk_index || 0);
-    const tier        = alert.tier || 'monitor';
-    const cls         = tier === 'emergency' ? 'high' : tier === 'seek_care' ? 'medium' : 'low';
-    const bandLabel   = { emergency: 'High — seek care immediately', seek_care: 'Moderate — see a doctor', monitor: 'Low — standard precautions' }[tier] || 'Monitor conditions';
-
-    const isTraveling = !!currentDestination;
-    const scoringLoc  = currentDestination || currentLoc;
-    const locName     = scoringLoc ? [scoringLoc.city, scoringLoc.country].filter(Boolean).join(', ') : 'Your location';
-    const locLabel    = isTraveling ? `Destination: ${locName}` : locName;
-
-    document.getElementById('detail-nav-title').textContent = capitalize(diseaseName);
-
-    const hasVax   = userVax.has(diseaseName.toLowerCase()) || userVax.has(diseaseName + ' (rts,s)');
-    const adjScore = profile.vaccine ? Math.round(score * 0.75) : score;
-
-    const vaxRows = `
-      <div class="vax-status-row"><div class="vax-status-lbl">Vaccine available</div><div class="status-badge ${profile.vaccine ? 'badge-yes' : 'badge-no'}">${profile.vaccine ? 'Yes' : 'No'}</div></div>
-      <div class="vax-status-row"><div class="vax-status-lbl">Your vaccination logged</div><div class="status-badge ${hasVax ? 'badge-yes' : 'badge-no'}">${hasVax ? 'Logged' : 'Not logged'}</div></div>
-      ${profile.vaccine ? `<div class="vax-status-row"><div class="vax-status-lbl">Score if vaccinated</div><div class="status-badge badge-adj">~${adjScore} (estimated)</div></div>` : ''}`;
-
-    const regionRows = profile.regions
-      ? profile.regions.map(r => `<div class="region-row"><div class="region-name">${r.name}</div><div class="region-score ${r.cls}">${r.score} · ${r.label}</div></div>`).join('')
-      : `<div class="region-row"><div class="region-name">Risk is not strongly region-dependent</div><div class="region-score rc-medium">Global</div></div>`;
-
-    const tips    = DISEASE_TIPS[diseaseName] || DISEASE_TIPS['default'];
-    const tipSvgs = [
-      '<path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>',
-      '<path d="M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
-      '<circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>',
-    ];
-    const tipRows = tips.map((t, i) => `
-      <div class="detail-tip-row">
-        <div class="detail-tip-ic"><svg viewBox="0 0 24 24">${tipSvgs[i % 3]}</svg></div>
-        <div class="detail-tip-txt">${t}</div>
-      </div>`).join('');
-
-    document.getElementById('detail-content').innerHTML = `
-      <div class="detail-hero">
-        <div class="detail-disease-name">${capitalize(diseaseName)}</div>
-        <div class="detail-location">${locLabel} · Updated just now</div>
-        <div class="detail-score-big ${cls}">${score}</div>
-        <div class="detail-score-lbl">risk score</div>
-        <div class="detail-pill pill-${cls}">${bandLabel}</div>
-      </div>
-      <div class="glass-card">
-        <div class="card-header">Epidemiological profile</div>
-        <div class="stat-grid">
-          <div class="stat-cell"><div class="stat-lbl">CFR</div><div class="stat-val">${(profile.cfr * 100).toFixed(profile.cfr < 0.01 ? 1 : 0)}%</div><div class="stat-sub">Case fatality rate</div></div>
-          <div class="stat-cell"><div class="stat-lbl">R₀</div><div class="stat-val">${profile.r0 || '—'}</div><div class="stat-sub">Reproduction number</div></div>
-          <div class="stat-cell"><div class="stat-lbl">Transmission</div><div class="stat-val">${capitalize(profile.transmission || 'Unknown')}</div><div class="stat-sub">&nbsp;</div></div>
-          <div class="stat-cell"><div class="stat-lbl">Peak season</div><div class="stat-val" style="font-size:13px">${profile.season || 'Year-round'}</div><div class="stat-sub">&nbsp;</div></div>
-        </div>
-        <div class="score-bar-wrap">
-          <div class="score-bar-lbl"><span>Composite risk score</span><span>${score} / 100</span></div>
-          <div class="score-bar-track"><div class="score-bar-fill fill-${cls}" style="width:${score}%"></div></div>
-        </div>
-      </div>
-      <div class="glass-card"><div class="card-header">Vaccine &amp; immunity status</div>${vaxRows}</div>
-      <div class="glass-card"><div class="card-header">Risk by region</div>${regionRows}</div>
-      <div class="glass-card">
-        <div class="card-header">Safety tips for this destination</div>
-        ${tipRows}
-        <div class="detail-source">Source: WHO · CDC · Not a substitute for medical advice.</div>
-      </div>
-      <div class="footer-note">CFR and R₀ values from WHO fact sheets &amp; JOGH 1996–2023 outbreak analysis.<br>Scores: CFR 45% · R₀ 30% · Transmission 15% · Vaccine 10%.</div>`;
-
-    showScreen('detail');
+function saveVaxAndClose() {
+  const count = userVax.size;
+  const badge = document.getElementById("vax-landing-count");
+  const sub   = document.getElementById("vax-landing-sub");
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = "inline-flex";
+    sub.textContent = `${count} vaccine${count > 1 ? "s" : ""} logged · tap to update`;
+  } else {
+    badge.style.display = "none";
+    sub.textContent = "Log vaccines to personalize your risk score";
   }
+  closeVaxModalDirect();
+}
 
-  // ── Vaccination toggle ──
-  function toggleVax(el, key) {
-    if (userVax.has(key)) { userVax.delete(key); el.classList.remove('on'); }
-    else { userVax.add(key); el.classList.add('on'); }
-  }
+function closeVaxModal(e) {
+  if (e.target.id === "vax-modal") closeVaxModalDirect();
+}
+function closeVaxModalDirect() {
+  document.getElementById("vax-modal").style.display = "none";
+  document.body.style.overflow = "";
+}
 
-  // ── Nonprofit tab / filter ──
-  function switchNPTab(tab) {
-    npTab = tab;
-    document.getElementById('tab-np').classList.toggle('active', tab === 'nonprofits');
-    document.getElementById('tab-db').classList.toggle('active', tab === 'database');
-    document.getElementById('np-filter-bar').style.display = tab === 'nonprofits' ? 'flex' : 'none';
-    if (tab === 'database') loadPandemicDB(); else renderNPList(npCurrentData);
-  }
-
-  function toggleFilter(el, filter) {
-    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('on'));
-    el.classList.add('on'); npActiveFilter = filter; renderNPList(npCurrentData);
-  }
-
-  async function loadNearbyNonprofits(lat, lon) {
-    document.getElementById('np-content').innerHTML = '<div class="loading">Finding nonprofits near you…</div>';
-    try {
-      const res = await fetch('/api/nonprofits/nearby', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat, lon, radius_miles: 25 })
-      });
-      npCurrentData = await res.json();
-      if (npTab === 'nonprofits') renderNPList(npCurrentData);
-    } catch { document.getElementById('np-content').innerHTML = '<div class="empty">Could not load nonprofits.</div>'; }
-  }
-
-  function renderNPList(data) {
-    const filtered = npActiveFilter === 'all' ? data : data.filter(n => (n.type || n.category || '').toLowerCase().includes(npActiveFilter));
-    if (!filtered.length) { document.getElementById('np-content').innerHTML = '<div class="empty">No nonprofits found for this filter.</div>'; return; }
-    const cards = filtered.map(n => `
-      <div class="np-row">
-        <div class="np-ic"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
-        <div class="np-info"><div class="np-name">${n.name || 'Nonprofit'}</div><div class="np-type">${n.type || n.category || 'Health organization'}</div></div>
-        <div class="np-dist">${n.distance_miles ? n.distance_miles.toFixed(1) + ' mi' : ''}</div>
-      </div>`).join('');
-    document.getElementById('np-content').innerHTML = `<div class="glass-card">${cards}</div>`;
-  }
-
-  async function loadPandemicDB() {
-    document.getElementById('np-content').innerHTML = '<div class="loading">Loading pandemic database…</div>';
-    try {
-      const res  = await fetch('/api/pandemics');
-      const data = await res.json();
-      if (!data.length) { document.getElementById('np-content').innerHTML = '<div class="empty">No pandemic data found. Add data/pandemics.json to your Flask app.</div>'; return; }
-      const rows = data.map(p => {
-        const status   = (p.status || '').toLowerCase();
-        const badgeCls = status === 'eradicated' ? 'badge-erad' : status === 'ongoing' ? 'badge-ongoing' : 'badge-cont';
-        return `<div class="db-row"><div class="db-year">${p.year || '—'}</div><div class="db-info"><div class="db-disease">${p.name || p.disease || 'Unknown'}</div><div class="db-method">${p.method || p.control_method || ''}</div></div><div class="db-badge ${badgeCls}">${p.status || 'Contained'}</div></div>`;
-      }).join('');
-      document.getElementById('np-content').innerHTML = `<div class="glass-card">${rows}</div><div class="footer-note">Historical eradication &amp; containment data. Source: WHO, CDC peer-reviewed studies.</div>`;
-    } catch { document.getElementById('np-content').innerHTML = '<div class="empty">Could not load pandemic database.</div>'; }
-  }
-
-  // ── Utilities ──
-  function capitalize(str) { return str ? str.charAt(0).toUpperCase() + str.slice(1) : ''; }
-  function truncate(str, n) { return str && str.length > n ? str.slice(0, n) + '…' : str; }
-  function formatDate(iso) {
-    if (!iso) return 'Recent';
-    try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch { return 'Recent'; }
-  }
+// ── Utilities ──
+function capitalize(str) { return str ? str.charAt(0).toUpperCase() + str.slice(1) : ""; }
+function truncate(str, n) { return str && str.length > n ? str.slice(0, n) + "…" : str; }
+function formatDate(iso) {
+  if (!iso) return "Recent";
+  try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return "Recent"; }
+}
 </script>
 </body>
 </html>
