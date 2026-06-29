@@ -1,0 +1,110 @@
+[
+    {
+      "year": "1918",
+      "name": "Spanish Flu (H1N1)",
+      "method": "Quarantine, social distancing, no vaccine available",
+      "status": "Contained"
+    },
+    {
+      "year": "1955",
+      "name": "Polio",
+      "method": "Salk and Sabin vaccines; global immunization campaigns",
+      "status": "Contained"
+    },
+    {
+      "year": "1967",
+      "name": "Smallpox",
+      "method": "Global WHO vaccination campaign; ring vaccination strategy",
+      "status": "Eradicated"
+    },
+    {
+      "year": "1976",
+      "name": "Ebola (first outbreak)",
+      "method": "Isolation, contact tracing, PPE; no vaccine at the time",
+      "status": "Contained"
+    },
+    {
+      "year": "1981",
+      "name": "HIV/AIDS",
+      "method": "Antiretroviral therapy (ART); harm reduction; no cure",
+      "status": "Ongoing"
+    },
+    {
+      "year": "1988",
+      "name": "Rinderpest (cattle plague)",
+      "method": "Global veterinary vaccination campaigns coordinated by FAO",
+      "status": "Eradicated"
+    },
+    {
+      "year": "2002",
+      "name": "SARS-CoV-1",
+      "method": "Quarantine, contact tracing, travel restrictions; no vaccine",
+      "status": "Contained"
+    },
+    {
+      "year": "2009",
+      "name": "Swine Flu (H1N1 pandemic)",
+      "method": "Rapid vaccine development; school closures; antiviral treatment",
+      "status": "Contained"
+    },
+    {
+      "year": "2012",
+      "name": "MERS-CoV",
+      "method": "Isolation, healthcare infection control; no approved vaccine",
+      "status": "Ongoing"
+    },
+    {
+      "year": "2014",
+      "name": "West African Ebola",
+      "method": "Ring vaccination (rVSV-ZEBOV); contact tracing; community engagement",
+      "status": "Contained"
+    },
+    {
+      "year": "2015",
+      "name": "Zika Virus",
+      "method": "Vector control, travel advisories, public health surveillance",
+      "status": "Contained"
+    },
+    {
+      "year": "2017",
+      "name": "Yemen Cholera Outbreak",
+      "method": "Oral rehydration therapy; oral cholera vaccine; WASH interventions",
+      "status": "Ongoing"
+    },
+    {
+      "year": "2018",
+      "name": "Kivu Ebola (DRC)",
+      "method": "Ring vaccination; conflict-zone response; community trust building",
+      "status": "Contained"
+    },
+    {
+      "year": "2019",
+      "name": "COVID-19 (SARS-CoV-2)",
+      "method": "mRNA vaccines; lockdowns; masking; antiviral therapy (Paxlovid)",
+      "status": "Ongoing"
+    },
+    {
+      "year": "2022",
+      "name": "Mpox (global outbreak)",
+      "method": "JYNNEOS vaccine; contact tracing; harm reduction messaging",
+      "status": "Ongoing"
+    },
+    {
+      "year": "2024",
+      "name": "Mpox Clade I (DRC)",
+      "method": "Ring vaccination; WHO PHEIC declared August 2024",
+      "status": "Ongoing"
+    },
+    {
+      "year": "2024",
+      "name": "Dengue (record global surge)",
+      "method": "Vector control; Qdenga vaccine rollout; WHO grade 3 emergency",
+      "status": "Ongoing"
+    },
+    {
+      "year": "2025",
+      "name": "H3N2 Influenza (severe season)",
+      "method": "Annual vaccination; antiviral treatment; surveillance via FluView",
+      "status": "Ongoing"
+    }
+  ]
